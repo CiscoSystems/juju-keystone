@@ -1,0 +1,103 @@
+#!/usr/bin/python
+import sys
+from utils import *
+
+config = config_get()
+
+packages = "keystone python-mysqldb pwgen"
+service = "keystone"
+
+# used to verify joined services are valid openstack components.
+valid_services = {
+    "nova": {
+        "type": "compute",
+        "desc": "Nova Compute Service"
+    },
+    "glance": {
+        "type": "image",
+        "desc": "Glance Image Service"
+    }
+}
+
+
+def install_hook():
+    execute("apt-get -y install %s" % packages, die=True)
+    keystone_conf_update("keystone-admin-role",
+                         config["keystone-admin-role"])
+    keystone_conf_update("keystone-service-admin-role",
+                         config["keystone-service-admin-role"])
+    keystone_conf_update("service_port", config["service-port"])
+    keystone_conf_update("admin_port", config["admin-port"])
+    execute("service keystone restart")
+    ensure_initial_admin(config)
+
+def db_joined():
+    relation_data = { "database": config["database"],
+                      "username": config["database-user"],
+                      "hostname": config["hostname"] }
+    relation_set(relation_data)
+
+def db_changed():
+    relation_data = relation_get(["private-address", "password"])
+    if len(relation_data) != 2:
+        juju_log("private-address or password not set. Peer not ready, exit 0")
+        exit(0)
+    keystone_conf_update("sql_connection",
+                         "mysql://%s:%s@%s/%s" %
+                            (config["database-user"],
+                             relation_data["password"],
+                             relation_data["private-address"],
+                             config["database"]))
+    execute("service keystone restart")
+    ensure_initial_admin(config)
+
+def identity_joined():
+    """ Do nothing until we get information about requested service """
+    pass
+
+def identity_changed():
+    options = ["service", "region", "public_url", "admin_url", "internal_url"]
+    relation_data = relation_get(options)
+    if len(relation_data) != len(options):
+        juju_log("Missing relation data.  Peer not ready, exit 0")
+        exit(0)
+
+    # we do not support the service advertised on the other end of relation
+    # return a token of -1 if it is not supported
+    if relation_data["service"] not in valid_services.keys():
+        juju_log("Invalid service requested: '%s'" % realtion_data["service"])
+        realtion_set({ "admin_token": -1 })
+        return
+    import manager
+    service = relation_data["service"]
+    service_type = valid_services[service]["type"]
+    desc = valid_services[service]["desc"]
+    create_service_entry(manager, service, service_type, desc)
+    create_endpoint_template(manager, relation_data["region"], service,
+                            relation_data["public_url"],
+                            relation_data["admin_url"],
+                            relation_data["internal_url"])
+    token = generate_admin_token(manager, config)
+    relation_data = {
+        "admin_token": token,
+        "service_host": config["hostname"],
+        "service_port": config["service-port"],
+        "auth_host": config["hostname"],
+        "auth_port": config["admin-port"]
+    }
+    relation_set(relation_data)
+
+hooks = {
+    "install": install_hook,
+    "shared-db-relation-joined": db_joined,
+    "shared-db-relation-changed": db_changed,
+    "identity-service-relation-joined": identity_joined,
+    "identity-service-relation-changed": identity_changed
+}
+
+arg0 = sys.argv[0].split("/").pop()
+if arg0 not in hooks.keys():
+    error_out("Unsupported hook: %s" % arg0)
+
+hooks[arg0]()
+

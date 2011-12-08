@@ -1,0 +1,10 @@
+name: keystone
+summary: Proposed OpenStack identity service - Daemons
+description: |
+ Proposed OpenStack identity service - Daemons
+provides:
+  identity-service:
+    interface: keystone
+requires:
+  shared-db:
+    interface: mysql-shared
