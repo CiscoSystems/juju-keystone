@@ -134,7 +134,7 @@ def create_tenant(manager, name):
 def create_user(manager, name, password, tenant):
     """ creates a user if it doesn't already exist, as a member of tenant """
     users = manager.api.list_users()
-    if not users and name not in map(lambda u: u[1], users):
+    if not users or name not in map(lambda u: u[1], users):
         manager.api.add_user(name=name, password=password, tenant=tenant)
         juju_log("Created new user '%s'" % name)
         return
@@ -143,10 +143,11 @@ def create_user(manager, name, password, tenant):
 def create_role(manager, name, user):
     """ creates a role if it doesn't already exist. grants role to user """
     roles = manager.api.list_roles()
-    if not roles and name not in map(lambda r: r[1], roles):
+    if not roles or name not in map(lambda r: r[1], roles):
         manager.api.add_role(name=name)
         juju_log("Created new role '%s'" % name)
-    juju_log("A role named '%s' already exists" % name)
+    else:
+        juju_log("A role named '%s' already exists" % name)
     # TODO Doesn't seem to be anyway of querying current role assignments?
     manager.api.grant_role(name, user)
     juju_log("Granted role '%s' to '%s'" % (name, user))
@@ -181,6 +182,7 @@ def ensure_initial_admin(config):
 
     create_user(manager, config["admin-user"], passwd, tenant="admin")
     create_role(manager, "Admin", config["admin-user"])
+    create_role(manager, "KeystoneServiceAdmin", config["admin-user"])
     create_service_entry(manager, "keystone",
                          "identity", "Keystone Identity Service")
     # following documentation here, perhaps we should be using juju
