@@ -49,6 +49,9 @@ def db_changed():
                              relation_data["private-address"],
                              config["database"]))
     execute("service keystone restart")
+    # both keystone restart and manager do database migrations on new databases
+    # sleep to avoid a race + migration errors
+    execute("sleep 2")
     ensure_initial_admin(config)
 
 def identity_joined():

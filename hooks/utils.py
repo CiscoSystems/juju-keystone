@@ -81,16 +81,17 @@ def keystone_conf_update(opt, val):
             found  = True
         else:
             new += l
+    new = new.split('\n')
     # insert a new value at the top of the file, after the 'DEFAULT' header so
     # as not to muck up paste deploy configuration later in the file 
     if not found:
         juju_log("Adding new config option %s = %s" % (opt, val))
-        header = new.index("[DEAFULT]\n")
-        new.insert((header+1), "%s = %s\n" % (key, value))
+        header = new.index("[DEFAULT]")
+        new.insert((header+1), "%s = %s" % (opt, val))
     f.seek(0)
     f.truncate()
     for l in new:
-        f.write(l)
+        f.write("%s\n" % l)
     f.close
 
 def create_service_entry(manager, service_name, service_type,
