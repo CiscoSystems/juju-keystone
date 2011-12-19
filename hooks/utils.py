@@ -183,6 +183,7 @@ def ensure_initial_admin(config):
 
     create_user(manager, config["admin-user"], passwd, tenant="admin")
     create_role(manager, "Admin", config["admin-user"])
+    create_role(manager, "KeystoneAdmin", config["admin-user"])
     create_role(manager, "KeystoneServiceAdmin", config["admin-user"])
     create_service_entry(manager, "keystone",
                          "identity", "Keystone Identity Service")
