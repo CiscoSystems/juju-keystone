@@ -59,6 +59,8 @@ def identity_joined():
     pass
 
 def identity_changed():
+    """ A service has advertised its API endpoints, create an entry in the 
+        service catalog. """
     options = ["service", "region", "public_url", "admin_url", "internal_url"]
     relation_data = relation_get(options)
     if len(relation_data) != len(options):
@@ -77,9 +79,9 @@ def identity_changed():
     desc = valid_services[service]["desc"]
     create_service_entry(manager, service, service_type, desc)
     create_endpoint_template(manager, relation_data["region"], service,
-                            relation_data["public_url"],
-                            relation_data["admin_url"],
-                            relation_data["internal_url"])
+                             relation_data["public_url"],
+                             relation_data["admin_url"],
+                             relation_data["internal_url"])
     token = generate_admin_token(manager, config)
     relation_data = {
         "admin_token": token,
@@ -90,12 +92,38 @@ def identity_changed():
     }
     relation_set(relation_data)
 
+def keystone_joined():
+    """ the keystone relations are here specifically for horizon since it
+        provide an API endpoint like other services but requires a valid
+        role and token to exist in keystone. it also needs to be informed
+        of *our* api endpoints (admin and auth) """
+    pass
+
+def keystone_changed():
+    import manager
+    options = ["role"]
+    relation_data = relation_get(options)
+    if len(relation_data) != len(options):
+        juju_log("Missing relation data.  Peer not ready, exit 0")
+        exit(0)
+    # create the requested admin role
+    create_role(manager, relation_data["role"], config["admin-user"])
+    token = generate_admin_token(manager, config)
+    relation_data = {
+        "service_port": config["service-port"],
+        "auth_port": config["admin-port"],
+        "admin_token": token
+    }
+    relation_set(relation_data)
+
 hooks = {
     "install": install_hook,
     "shared-db-relation-joined": db_joined,
     "shared-db-relation-changed": db_changed,
     "identity-service-relation-joined": identity_joined,
-    "identity-service-relation-changed": identity_changed
+    "identity-service-relation-changed": identity_changed,
+    "keystone-service-relation-joined": keystone_joined,
+    "keystone-service-relation-changed": keystone_changed
 }
 
 arg0 = sys.argv[0].split("/").pop()
