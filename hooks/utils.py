@@ -173,7 +173,9 @@ def ensure_initial_admin(config):
     create_tenant(manager, "admin")
 
     passwd = ""
-    if os.path.isfile(stored_passwd):
+    if config["admin-password"] != "None":
+        passwd = config["admin-password"]
+    elif os.path.isfile(stored_passwd):
         juju_log("Loading stored passwd from %s" % stored_passwd)
         passwd = open(stored_passwd, 'r').readline().strip('\n')
     if passwd == "":
