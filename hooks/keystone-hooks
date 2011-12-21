@@ -16,7 +16,12 @@ valid_services = {
     "glance": {
         "type": "image",
         "desc": "Glance Image Service"
+    },
+    "swift": {
+        "type": "storage",
+        "desc": "Swift Object Storage Service"
     }
+
 }
 
 
@@ -70,7 +75,7 @@ def identity_changed():
     # we do not support the service advertised on the other end of relation
     # return a token of -1 if it is not supported
     if relation_data["service"] not in valid_services.keys():
-        juju_log("Invalid service requested: '%s'" % realtion_data["service"])
+        juju_log("Invalid service requested: '%s'" % relation_data["service"])
         realtion_set({ "admin_token": -1 })
         return
     import manager
