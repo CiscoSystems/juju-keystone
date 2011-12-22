@@ -8,23 +8,34 @@ import os
 keystone_conf = "/etc/keystone/keystone.conf"
 stored_passwd = "/var/lib/keystone/keystone.passwd"
 
-def execute(cmd, die=False):
+def execute(cmd, die=False, echo=False):
+    """ Executes a command 
+        if die=True, script will exit(1) if command does not return 0
+        if echo=True, output of command will be printed to stdout
+        returns a tuple: (stdout, stderr, return code)
+    """
     p = subprocess.Popen(cmd.split(" "),
                          stdout=subprocess.PIPE,
                          stdin=subprocess.PIPE,
                          stderr=subprocess.PIPE)
     stdout=""
     stderr=""
+
+    def print_line(l):
+        if echo:
+            print l.strip('\n')
+            sys.stdout.flush()
+
     for l in iter(p.stdout.readline, ''):
-        print l.strip('\n')
-        sys.stdout.flush()
+        print_line(l)
         stdout += l
     for l in iter(p.stderr.readline, ''):
-        print l.strip('\n')
-        sys.stdout.flush()
+        print_line(l)
         stderr += l
+
     p.communicate()
     rc = p.returncode
+
     if die and rc != 0:
         error_out("ERROR: command %s return non-zero.\n" % cmd)
     return (stdout, stderr, rc)
@@ -37,7 +48,19 @@ def error_out(msg):
     juju_log("FATAL ERROR: %s" % msg)
     exit(1)
 
+def setup_ppa(rel):
+    """ currently the keystone-core team only publishes a trunk PPA """
+    if rel == "trunk":
+        ppa = "ppa:keystone-core/trunk"
+    elif rel[:4] == "ppa:":
+        ppa = rel
+    else:
+        error_out("Invalid keystone-release specified: %s" % rel)
+    execute(("add-apt-repository -y %s" % ppa), die=True, echo=True)
+
 def config_get():
+    """ return a dict representing the output of config-get 
+        private-address and IP of the unit is also tacked on """
     output = execute("config-get --format json")[0]
     config = json.loads(output)
     # make sure no config element is blank after config-get
@@ -52,7 +75,8 @@ def config_get():
     return config
 
 def relation_set(relation_data):
-    for k in  relation_data:
+    """ calls relation-set for all key=values in dict """
+    for k in relation_data:
         execute("relation-set %s=%s" % (k, relation_data[k]), die=True)
 
 def relation_get(relation_data):
@@ -70,6 +94,11 @@ def relation_get(relation_data):
     return results
 
 def keystone_conf_update(opt, val):
+    """ updates keystone.conf values 
+        if option exists, it is reset to new value
+        if it does not, it added to the top of the config file
+        after the [DEFAULT] heading
+    """
     f = open(keystone_conf, "r+")
     orig = f.readlines()
     new = ""
@@ -167,7 +196,6 @@ def ensure_initial_admin(config):
         run during install as well as during db-changed.  This will maintain
         the admin tenant, user, role, service entry and endpoint across every
         datastore we might use. 
-        TODO: Maybe seperate endpoint + service entry create to its own function?
     """
     import manager
     create_tenant(manager, "admin")

@@ -7,6 +7,10 @@ options:
     default: "false"
     type: string
     description: "Enable debug logging"
+  keystone-release:
+    default: "distro"
+    type: string
+    description: "Optional PPA to install keystone from ('ppa:your/ppa', 'trunk')"
   config-file:
     default: "/etc/keystone/keystone.conf"
     type: string

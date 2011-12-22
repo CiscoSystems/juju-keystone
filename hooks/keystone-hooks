@@ -26,14 +26,16 @@ valid_services = {
 
 
 def install_hook():
-    execute("apt-get -y install %s" % packages, die=True)
+    if config["keystone-release"] != "distro":
+        setup_ppa(config["keystone-release"])
+    execute("apt-get -y install %s" % packages, die=True, echo=True)
     keystone_conf_update("keystone-admin-role",
                          config["keystone-admin-role"])
     keystone_conf_update("keystone-service-admin-role",
                          config["keystone-service-admin-role"])
     keystone_conf_update("service_port", config["service-port"])
     keystone_conf_update("admin_port", config["admin-port"])
-    execute("service keystone restart")
+    execute("service keystone restart", echo=True)
     ensure_initial_admin(config)
 
 def db_joined():
@@ -53,7 +55,7 @@ def db_changed():
                              relation_data["password"],
                              relation_data["private-address"],
                              config["database"]))
-    execute("service keystone restart")
+    execute("service keystone restart", echo=True)
     # both keystone restart and manager do database migrations on new databases
     # sleep to avoid a race + migration errors
     execute("sleep 2")
