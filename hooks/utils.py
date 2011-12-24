@@ -10,9 +10,11 @@ stored_passwd = "/var/lib/keystone/keystone.passwd"
 
 def execute(cmd, die=False, echo=False):
     """ Executes a command 
-        if die=True, script will exit(1) if command does not return 0
-        if echo=True, output of command will be printed to stdout
-        returns a tuple: (stdout, stderr, return code)
+
+    if die=True, script will exit(1) if command does not return 0
+    if echo=True, output of command will be printed to stdout
+
+    returns a tuple: (stdout, stderr, return code)
     """
     p = subprocess.Popen(cmd.split(" "),
                          stdout=subprocess.PIPE,
@@ -49,7 +51,12 @@ def error_out(msg):
     exit(1)
 
 def setup_ppa(rel):
-    """ currently the keystone-core team only publishes a trunk PPA """
+    """ Configure a PPA prior to installing.
+    Currently, keystone-core only maintains a trunk PPA (unlike other
+    subprojects that maintain one for milestone + milestone-proposed)
+    Currently, supported options are 'trunk' or a custom PPA passed to config
+    as 'ppa:someproject/someppa'
+    """
     if rel == "trunk":
         ppa = "ppa:keystone-core/trunk"
     elif rel[:4] == "ppa:":
@@ -59,8 +66,11 @@ def setup_ppa(rel):
     execute(("add-apt-repository -y %s" % ppa), die=True, echo=True)
 
 def config_get():
-    """ return a dict representing the output of config-get 
-        private-address and IP of the unit is also tacked on """
+    """ Obtain the units config via 'config-get' 
+    Returns a dict representing current config.
+    private-address and IP of the unit is also tacked on for
+    convienence
+    """
     output = execute("config-get --format json")[0]
     config = json.loads(output)
     # make sure no config element is blank after config-get
@@ -80,11 +90,13 @@ def relation_set(relation_data):
         execute("relation-set %s=%s" % (k, relation_data[k]), die=True)
 
 def relation_get(relation_data):
-    """ takes a list of options to query from the relation
-        returns a k,v dict of the results. 
-        leave empty responses out of the results as they haven't yet been
-        set on the other end. caller expects
-        len(results.keys()) == len(relation_data)
+    """ Obtain all current relation data
+    relation_data is a list of options to query from the relation
+    Returns a k,v dict of the results. 
+    Leave empty responses out of the results as they haven't yet been
+    set on the other end. 
+    Caller can then "len(results.keys()) == len(relation_data)" to find out if
+    all relation values have been set on the other side
     """
     results = {}
     for r in relation_data:
@@ -94,10 +106,10 @@ def relation_get(relation_data):
     return results
 
 def keystone_conf_update(opt, val):
-    """ updates keystone.conf values 
-        if option exists, it is reset to new value
-        if it does not, it added to the top of the config file
-        after the [DEFAULT] heading
+    """ Updates keystone.conf values 
+    If option exists, it is reset to new value
+    If it does not, it added to the top of the config file after the [DEFAULT]
+    heading to keep it out of the paste deploy config
     """
     f = open(keystone_conf, "r+")
     orig = f.readlines()
@@ -178,7 +190,7 @@ def create_role(manager, name, user):
         juju_log("Created new role '%s'" % name)
     else:
         juju_log("A role named '%s' already exists" % name)
-    # TODO Doesn't seem to be anyway of querying current role assignments?
+    # NOTE: There does not seem to be any way of querying current role asignment
     manager.api.grant_role(name, user)
     juju_log("Granted role '%s' to '%s'" % (name, user))
 
@@ -196,6 +208,8 @@ def ensure_initial_admin(config):
         run during install as well as during db-changed.  This will maintain
         the admin tenant, user, role, service entry and endpoint across every
         datastore we might use. 
+        TODO: Possibly migrate data from one backend to another after it
+        changes?
     """
     import manager
     create_tenant(manager, "admin")

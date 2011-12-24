@@ -8,6 +8,8 @@ packages = "keystone python-mysqldb pwgen"
 service = "keystone"
 
 # used to verify joined services are valid openstack components.
+# this should reflect the current "core" components of openstack
+# and be expanded as we add support for them as a distro
 valid_services = {
     "nova": {
         "type": "compute",
@@ -21,13 +23,12 @@ valid_services = {
         "type": "storage",
         "desc": "Swift Object Storage Service"
     }
-
 }
-
 
 def install_hook():
     if config["keystone-release"] != "distro":
         setup_ppa(config["keystone-release"])
+    execute("apt-get update", die=True)
     execute("apt-get -y install %s" % packages, die=True, echo=True)
     keystone_conf_update("keystone-admin-role",
                          config["keystone-admin-role"])
@@ -74,10 +75,10 @@ def identity_changed():
         juju_log("Missing relation data.  Peer not ready, exit 0")
         exit(0)
 
-    # we do not support the service advertised on the other end of relation
-    # return a token of -1 if it is not supported
+    # If we do not support the service advertised on the other end of relation
+    # return a token of -1
     if relation_data["service"] not in valid_services.keys():
-        juju_log("Invalid service requested: '%s'" % relation_data["service"])
+        juju_log("WARN: Invalid service requested: '%s'" % relation_data["service"])
         realtion_set({ "admin_token": -1 })
         return
     import manager
@@ -90,6 +91,7 @@ def identity_changed():
                              relation_data["admin_url"],
                              relation_data["internal_url"])
     token = generate_admin_token(manager, config)
+    # we return a token and information about our API endpoints
     relation_data = {
         "admin_token": token,
         "service_host": config["hostname"],
@@ -100,13 +102,18 @@ def identity_changed():
     relation_set(relation_data)
 
 def keystone_joined():
-    """ the keystone relations are here specifically for horizon since it
-        provide an API endpoint like other services but requires a valid
-        role and token to exist in keystone. it also needs to be informed
-        of *our* api endpoints (admin and auth) """
+    """
+    The keystone-service relations exist specifically for horizon.  Instead of
+    a token and entry in the service catalog (like other services), it requires
+    a token and a role.  It doesn't expose any endpoint that keystone needs to
+    care about, thus it relates to this unit via its own service relation.
+    """
     pass
 
 def keystone_changed():
+    """ Horizon will request a default role, we create it and return a
+        token
+    """
     import manager
     options = ["role"]
     relation_data = relation_get(options)
@@ -116,6 +123,8 @@ def keystone_changed():
     # create the requested admin role
     create_role(manager, relation_data["role"], config["admin-user"])
     token = generate_admin_token(manager, config)
+    # Return token and API ports.  Let horizon find our hostname via
+    # 'relation-get private-address'
     relation_data = {
         "service_port": config["service-port"],
         "auth_port": config["admin-port"],
@@ -133,9 +142,9 @@ hooks = {
     "keystone-service-relation-changed": keystone_changed
 }
 
+# keystone-hooks gets called by symlink corresponding to the requested relation
+# hook.
 arg0 = sys.argv[0].split("/").pop()
 if arg0 not in hooks.keys():
     error_out("Unsupported hook: %s" % arg0)
-
 hooks[arg0]()
-
