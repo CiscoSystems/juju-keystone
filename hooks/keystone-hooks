@@ -90,7 +90,10 @@ def identity_changed():
                              relation_data["public_url"],
                              relation_data["admin_url"],
                              relation_data["internal_url"])
-    token = generate_admin_token(manager, config)
+    if config["admin-token"] == "None":
+        token = generate_admin_token(manager, config)
+    else:
+        token = config["admin-token"]
     # we return a token and information about our API endpoints
     relation_data = {
         "admin_token": token,
