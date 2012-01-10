@@ -196,8 +196,11 @@ def create_role(manager, name, user):
 
 def generate_admin_token(manager, config):
     """ generate and add an admin token """
-    import random
-    token = random.randrange(1000000000000, 9999999999999)
+    if config["admin-token"] == None:
+        import random
+        token = random.randrange(1000000000000, 9999999999999)
+    else:
+        token = config["admin-token"]
     manager.api.add_token(token, config["admin-user"], "admin", config["token-expiry"])
     juju_log("Generated and added new random admin token.")
     return token
