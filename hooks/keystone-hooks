@@ -37,6 +37,9 @@ def install_hook():
     keystone_conf_update("service_port", config["service-port"])
     keystone_conf_update("admin_port", config["admin-port"])
     execute("service keystone stop", echo=True)
+    # remove bad database (created on service start) until packages are updated
+    # to add databsae sync
+    execute("rm -rf /var/lib/keystone/keystone.db")
     execute("keystone-manage database sync")
     execute("service keystone start", echo=True)
     ensure_initial_admin(config)
