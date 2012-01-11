@@ -36,7 +36,9 @@ def install_hook():
                          config["keystone-service-admin-role"])
     keystone_conf_update("service_port", config["service-port"])
     keystone_conf_update("admin_port", config["admin-port"])
-    execute("service keystone restart", echo=True)
+    execute("service keystone stop", echo=True)
+    execute("keystone-manage database sync")
+    execute("service keystone start", echo=True)
     ensure_initial_admin(config)
 
 def db_joined():
@@ -56,11 +58,10 @@ def db_changed():
                              relation_data["password"],
                              relation_data["private-address"],
                              config["database"]))
-    execute("service keystone restart", echo=True)
-    # both keystone restart and manager do database migrations on new databases
-    # sleep to avoid a race + migration errors
-    execute("sleep 2")
+    execute("service keystone stop", echo=True)
+    execute("keystone-manage database sync", echo=True)
     ensure_initial_admin(config)
+    execute("service keystone start")
 
 def identity_joined():
     """ Do nothing until we get information about requested service """
