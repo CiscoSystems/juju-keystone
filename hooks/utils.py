@@ -200,7 +200,7 @@ def generate_admin_token(manager, config):
         import random
         token = random.randrange(1000000000000, 9999999999999)
     else:
-        token = config["admin-token"]
+        return config["admin-token"]
     manager.api.add_token(token, config["admin-user"], "admin", config["token-expiry"])
     juju_log("Generated and added new random admin token.")
     return token
@@ -234,6 +234,16 @@ def ensure_initial_admin(config):
     create_role(manager, "KeystoneServiceAdmin", config["admin-user"])
     create_service_entry(manager, "keystone",
                          "identity", "Keystone Identity Service")
+    # if we are using a shared admin-token, create it with with rest of initial
+    # admin credentials.
+    if config["admin-token"]:
+        juju_log("Creating pre-configured, shared admin-token.")
+        try:
+            manager.api.add_token(config["admin-token"], config["admin-uesr"],
+                                  "admin", config["token-expiry"])
+        except:
+            juju_log("Could not create admin token.  Already exists?")
+
     # following documentation here, perhaps we should be using juju
     # public/private addresses for public/internal urls.
     public_url = "http://%s:%s/v2.0" % (config["ip"], config["service-port"])
