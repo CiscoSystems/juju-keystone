@@ -61,9 +61,21 @@ def setup_ppa(rel):
         ppa = "ppa:keystone-core/trunk"
     elif rel[:4] == "ppa:":
         ppa = rel
+    elif rel[:3] == "deb":
+        l = len(rel.split('|'))
+        if l ==  2:
+            ppa, key = rel.split('|')
+            juju_log("Importing PPA key from keyserver for %s" % ppa)
+            cmd = "apt-key adv --keyserver keyserver.ubuntu.com " \
+                  "--recv-keys %s" % key
+            execute(cmd, echo=True)
+        elif l == 1:
+            ppa = rel
+        else:
+            error_out("Invalid keystone-release: %s" % rel)
     else:
         error_out("Invalid keystone-release specified: %s" % rel)
-    execute(("add-apt-repository -y %s" % ppa), die=True, echo=True)
+    subprocess.call(["add-apt-repository", "-y", ppa])
 
 def config_get():
     """ Obtain the units config via 'config-get' 
@@ -196,7 +208,7 @@ def create_role(manager, name, user):
 
 def generate_admin_token(manager, config):
     """ generate and add an admin token """
-    if config["admin-token"] == None:
+    if config["admin-token"] == "None":
         import random
         token = random.randrange(1000000000000, 9999999999999)
     else:
@@ -236,10 +248,10 @@ def ensure_initial_admin(config):
                          "identity", "Keystone Identity Service")
     # if we are using a shared admin-token, create it with with rest of initial
     # admin credentials.
-    if config["admin-token"]:
+    if config["admin-token"] != "None":
         juju_log("Creating pre-configured, shared admin-token.")
         try:
-            manager.api.add_token(config["admin-token"], config["admin-uesr"],
+            manager.api.add_token(config["admin-token"], config["admin-user"],
                                   "admin", config["token-expiry"])
         except:
             juju_log("Could not create admin token.  Already exists?")
