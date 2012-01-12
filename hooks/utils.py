@@ -91,9 +91,7 @@ def config_get():
             error_out("ERROR: Config option has no paramter: %s" % c)
     # tack on our private address and ip
     hostname = execute("unit-get private-address")[0].strip()
-    ip = execute("dig +short %s" % hostname, die=True)[0].strip()
-    config["hostname"] = hostname
-    config["ip"] = ip
+    config["hostname"] = execute("unit-get private-address")[0].strip()
     return config
 
 def relation_set(relation_data):
@@ -258,8 +256,8 @@ def ensure_initial_admin(config):
 
     # following documentation here, perhaps we should be using juju
     # public/private addresses for public/internal urls.
-    public_url = "http://%s:%s/v2.0" % (config["ip"], config["service-port"])
-    admin_url = "http://%s:%s/v2.0" % (config["ip"], config["admin-port"])
-    internal_url = "http://%s:%s/v2.0" % (config["ip"], config["service-port"])
+    public_url = "http://%s:%s/v2.0" % (config["hostname"], config["service-port"])
+    admin_url = "http://%s:%s/v2.0" % (config["hostname"], config["admin-port"])
+    internal_url = "http://%s:%s/v2.0" % (config["hostname"], config["service-port"])
     create_endpoint_template(manager, "RegionOne", "keystone", public_url,
                              admin_url, internal_url)
