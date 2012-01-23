@@ -41,6 +41,7 @@ def install_hook():
     # to add databsae sync
     execute("rm -rf /var/lib/keystone/keystone.db")
     execute("keystone-manage database sync")
+    execute("sleep 10")
     execute("service keystone start", echo=True)
     ensure_initial_admin(config)
 
