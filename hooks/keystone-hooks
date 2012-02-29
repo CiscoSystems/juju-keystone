@@ -1,5 +1,7 @@
 #!/usr/bin/python
+
 import sys
+import time
 from utils import *
 
 config = config_get()
@@ -45,7 +47,11 @@ def install_hook():
                         driver='keystone.contrib.ec2.backends.sql.Ec2')
     execute("service keystone stop", echo=True)
     execute("keystone-manage db_sync")
+    #NOTE(adam_g): This chown can be removed once packaging switches to sql
+    # and does this for us
+    execute("chown keystone /var/lib/keystone/ -R")
     execute("service keystone start", echo=True)
+    time.sleep(5)
     ensure_initial_admin(config)
 
 def db_joined():
@@ -66,8 +72,9 @@ def db_changed():
                              config["database"]))
     execute("service keystone stop", echo=True)
     execute("keystone-manage db_sync", echo=True)
-    ensure_initial_admin(config)
     execute("service keystone start")
+    time.sleep(5)
+    ensure_initial_admin(config)
 
 def identity_joined():
     """ Do nothing until we get information about requested service """
@@ -88,16 +95,15 @@ def identity_changed():
         juju_log("WARN: Invalid service requested: '%s'" % relation_data["service"])
         realtion_set({ "admin_token": -1 })
         return
-    import manager
     service = relation_data["service"]
     service_type = valid_services[service]["type"]
     desc = valid_services[service]["desc"]
-    create_service_entry(manager, service, service_type, desc)
-    create_endpoint_template(manager, relation_data["region"], service,
+    create_service_entry(service, service_type, desc)
+    create_endpoint_template(relation_data["region"], service,
                              relation_data["public_url"],
                              relation_data["admin_url"],
                              relation_data["internal_url"])
-    token = generate_admin_token(manager, config)
+    token = generate_admin_token(config)
     # we return a token and information about our API endpoints
     relation_data = {
         "admin_token": token,
@@ -121,16 +127,15 @@ def keystone_changed():
     """ Horizon will request a default role, we create it and return a
         token
     """
-    import manager
     options = ["role"]
     relation_data = relation_get(options)
     if len(relation_data) != len(options):
         juju_log("Missing relation data.  Peer not ready, exit 0")
         exit(0)
     # create the requested admin role
-    create_role(manager, relation_data["role"],
+    create_role(relation_data["role"],
                 config["admin-user"], config['admin-role'])
-    token = generate_admin_token(manager, config)
+    token = generate_admin_token(config)
     # Return token and API ports.  Let horizon find our hostname via
     # 'relation-get private-address'
     relation_data = {
