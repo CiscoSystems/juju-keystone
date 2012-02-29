@@ -1,5 +1,4 @@
 #!/usr/bin/python
-from pdb import *
 import subprocess
 import sys
 import json
@@ -115,6 +114,77 @@ def relation_get(relation_data):
            results[r] = result
     return results
 
+def update_config_block(block, **kwargs):
+    """ Updates keystone.conf blocks given kwargs.
+    Can be used to update driver settings for a particular backend,
+    setting the sql connection, etc. 
+    
+    Parses block heading as '[block]'
+    
+    If block does not exist, a new block will be created at end of file with
+    given kwargs
+    """
+    f = open(keystone_conf, "r+")
+    orig = f.readlines()
+    new = []
+    found_block = ""
+    heading = "[%s]\n" % block
+
+    lines = len(orig)
+    ln = 0
+
+    def update_block(block):
+        for k, v in kwargs.iteritems():
+            for l in block:
+                if l.strip().split(" ")[0] == k:
+                    block[block.index(l)] = "%s = %s\n" % (k, v)
+                    return
+            block.append('%s = %s\n' % (k, v))
+            block.append('\n')
+
+    try:
+        found = False
+        while ln < lines:
+            if orig[ln] != heading:
+                new.append(orig[ln])
+                ln += 1
+            else:
+                new.append(orig[ln])
+                ln += 1
+                block = []
+                while orig[ln].strip() != '':
+                    block.append(orig[ln])
+                    ln += 1
+                update_block(block)
+                new += block
+                found = True
+
+        if not found:
+            if new[(len(new) - 1)].strip() != '':
+                new.append('\n')
+            new.append('%s' % heading)
+            for k, v in kwargs.iteritems():
+                new.append('%s = %s\n' % (k, v))
+            new.append('\n')
+    except:
+        error_out('Error while attempting to update config block. '\
+                  'Refusing to overwite existing config.')
+
+        return
+
+    # backup original config
+    backup = open(keystone_conf + '.juju-back', 'w+')
+    for l in orig:
+        backup.write(l)
+    backup.close()
+
+    # update config
+    f.seek(0)
+    f.truncate()
+    for l in new:
+        f.write(l)
+
+
 def keystone_conf_update(opt, val):
     """ Updates keystone.conf values 
     If option exists, it is reset to new value
@@ -148,60 +218,82 @@ def keystone_conf_update(opt, val):
 def create_service_entry(manager, service_name, service_type,
                          service_desc, owner=None):
     """ Add a new service entry to keystone if one does not already exist """
-    for service in manager.api.list_services():
-        if service[1] == service_name:
+    for service in [s._info for s in manager.api.services.list()]:
+        if service['name'] == service_name:
             juju_log("Service entry for '%s' already exists." % service_name)
             return
-    manager.api.add_service(name=service_name,
-                            type=service_type,
-                            desc=service_desc, owner_id=owner)
+    manager.api.services.create(name=service_name,
+                                service_type=service_type,
+                                description=service_desc)
     juju_log("Created new service entry '%s'" % service_name)
 
 def create_endpoint_template(manager, region, service,  public_url,
                              admin_url, internal_url):
     """ Create a new endpoint template for service if one does not already
         exist matching name *and* region """
-    for endpoint in manager.api.list_endpoint_templates():
-        if endpoint[1] == service and  endpoint[3] == region:
+    service_id = manager.resolve_service_id(service)
+    for ep in [e._info for e in manager.api.endpoints.list()]:
+        if ep['service_id'] == service_id and ep['region'] == region:
             juju_log("Endpoint template already exists for '%s' in '%s'"
                       % (service, region))
             return
-    manager.api.add_endpoint_template(region=region, service=service,
-                             public_url=public_url, admin_url=admin_url,
-                             internal_url=internal_url, enabled=1, is_global=1,
-                             version_id=None, version_list=None,
-                             version_info=None)
-    juju_log("Created new endpoint template for '%s' in '%s'"
-              % (region, service))
+
+    manager.api.endpoints.create(region=region,
+                                 service_id=service_id,
+                                 publicurl=public_url,
+                                 adminurl=admin_url,
+                                 internalurl=internal_url)
+    juju_log("Created new endpoint template for '%s' in '%s'" %
+                (region, service))
 
 def create_tenant(manager, name):
     """ creates a tenant if it does not already exist """
-    tenants = manager.api.list_tenants()
-    if not tenants or name not in map(lambda t: t[1], tenants):
-        manager.api.add_tenant(name=name)
+    tenants = [t._info for t in manager.api.tenants.list()]
+    if not tenants or name not in [t['name'] for t in tenants]:
+        manager.api.tenants.create(tenant_name=name,
+                                   description='Created by Juju')
         juju_log("Created new tenant: %s" % name)
         return
     juju_log("Tenant '%s' already exists." % name)
 
 def create_user(manager, name, password, tenant):
     """ creates a user if it doesn't already exist, as a member of tenant """
-    users = manager.api.list_users()
-    if not users or name not in map(lambda u: u[1], users):
-        manager.api.add_user(name=name, password=password, tenant=tenant)
+
+
+    users = [u._info for u in manager.api.users.list()]
+    if not users or name not in [u['name'] for u in users]:
+        tenant_id = manager.resolve_tenant_id(tenant)
+        if not tenant_id:
+            error_out('Could not resolve tenant_id for tenant %s' % tenant)
+        manager.api.users.create(name=name,
+                                 password=password,
+                                 email='juju@localhost',
+                                 tenant_id=tenant_id)
         juju_log("Created new user '%s'" % name)
         return
     juju_log("A user named '%s' already exists" % name)
 
-def create_role(manager, name, user):
+def create_role(manager, name, user, tenant):
     """ creates a role if it doesn't already exist. grants role to user """
-    roles = manager.api.list_roles()
-    if not roles or name not in map(lambda r: r[1], roles):
-        manager.api.add_role(name=name)
+    roles = [r._info for r in manager.api.roles.list()]
+    if not roles or name not in [r['name'] for r in roles]:
+        manager.api.roles.create(name=name)
         juju_log("Created new role '%s'" % name)
     else:
         juju_log("A role named '%s' already exists" % name)
-    # NOTE: There does not seem to be any way of querying current role asignment
-    manager.api.grant_role(name, user)
+
+    # NOTE(adam_g): Keystone client requires id's for add_user_role, not names
+    user_id = manager.resolve_user_id(user)
+    role_id = manager.resolve_role_id(name)
+    tenant_id = manager.resolve_tenant_id(tenant)
+
+    if None in [user_id, role_id, tenant_id]:
+        error_out("Could not resolve [user_id, role_id, tenant_id]" %
+                   [user_id, role_id, tenant_id])
+
+    manager.api.roles.add_user_role(user=user_id,
+                                    role=role_id,
+                                    tenant=tenant_id)
     juju_log("Granted role '%s' to '%s'" % (name, user))
 
 def generate_admin_token(manager, config):

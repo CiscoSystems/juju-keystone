@@ -30,18 +30,21 @@ def install_hook():
         setup_ppa(config["keystone-release"])
     execute("apt-get update", die=True)
     execute("apt-get -y install %s" % packages, die=True, echo=True)
-    keystone_conf_update("keystone-admin-role",
-                         config["keystone-admin-role"])
-    keystone_conf_update("keystone-service-admin-role",
-                         config["keystone-service-admin-role"])
-    keystone_conf_update("service_port", config["service-port"])
-    keystone_conf_update("admin_port", config["admin-port"])
+    update_config_block('DEFAULT', public_port=config["service-port"])
+    update_config_block('DEFAULT', admin_port=config["admin-port"])
+    # set all backends to use sql+sqlite, if they are not already by default
+    update_config_block('sql',
+                        connection='sqlite:////var/lib/keystone/keystone.db')
+    update_config_block('identity',
+                        driver='keystone.identity.backends.sql.Identity')
+    update_config_block('catalog',
+                        driver='keystone.catalog.backends.sql.Catalog')
+    update_config_block('token',
+                        driver='keystone.token.backends.sql.Token')
+    update_config_block('ec2',
+                        driver='keystone.contrib.ec2.backends.sql.Ec2')
     execute("service keystone stop", echo=True)
-    # remove bad database (created on service start) until packages are updated
-    # to add databsae sync
-    execute("rm -rf /var/lib/keystone/keystone.db")
-    execute("keystone-manage database sync")
-    execute("sleep 10")
+    execute("keystone-manage db_sync")
     execute("service keystone start", echo=True)
     ensure_initial_admin(config)
 
@@ -56,14 +59,13 @@ def db_changed():
     if len(relation_data) != 2:
         juju_log("private-address or password not set. Peer not ready, exit 0")
         exit(0)
-    keystone_conf_update("sql_connection",
-                         "mysql://%s:%s@%s/%s" %
+    update_config_block('sql', connection="mysql://%s:%s@%s/%s" %
                             (config["database-user"],
                              relation_data["password"],
                              relation_data["private-address"],
                              config["database"]))
     execute("service keystone stop", echo=True)
-    execute("keystone-manage database sync", echo=True)
+    execute("keystone-manage db_sync", echo=True)
     ensure_initial_admin(config)
     execute("service keystone start")
 
@@ -126,7 +128,8 @@ def keystone_changed():
         juju_log("Missing relation data.  Peer not ready, exit 0")
         exit(0)
     # create the requested admin role
-    create_role(manager, relation_data["role"], config["admin-user"])
+    create_role(manager, relation_data["role"],
+                config["admin-user"], config['admin-role'])
     token = generate_admin_token(manager, config)
     # Return token and API ports.  Let horizon find our hostname via
     # 'relation-get private-address'
