@@ -114,6 +114,16 @@ def relation_get(relation_data):
            results[r] = result
     return results
 
+def relation_get_dict():
+    """Obtain all relation data as dict by way of JSON"""
+    j = execute('relation-get --format=json', die=True)[0]
+    d = json.loads(j)
+    settings = {}
+    # convert unicode to strings
+    for k, v in d.iteritems():
+        settings[str(k)] = str(v)
+    return settings
+
 def get_admin_token():
     """Temporary utility to grab the admin token as configured in
        keystone.conf

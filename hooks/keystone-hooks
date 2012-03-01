@@ -100,36 +100,82 @@ def identity_joined():
 def identity_changed():
     """ A service has advertised its API endpoints, create an entry in the 
         service catalog. """
-    options = ["service", "region", "public_url", "admin_url", "internal_url"]
-    relation_data = relation_get(options)
-    if len(relation_data) != len(options):
-        juju_log("Missing relation data.  Peer not ready, exit 0")
-        exit(0)
+    # TODO(adm_g): Need to add this type of logic back
+    #relation_data = relation_get(options)
+    #if len(relation_data) != len(options):
+    #    juju_log("Missing relation data.  Peer not ready, exit 0")
+    #    exit(0)
+    def ensure_valid_service(service):
+        if service not in valid_services.keys():
+            juju_log("WARN: Invalid service requested: '%s'" % service)
+            realtion_set({ "admin_token": -1 })
+            return
 
-    # If we do not support the service advertised on the other end of relation
-    # return a token of -1
-    if relation_data["service"] not in valid_services.keys():
-        juju_log("WARN: Invalid service requested: '%s'" % relation_data["service"])
-        realtion_set({ "admin_token": -1 })
-        return
-    service = relation_data["service"]
-    service_type = valid_services[service]["type"]
-    desc = valid_services[service]["desc"]
-    create_service_entry(service, service_type, desc)
-    create_endpoint_template(relation_data["region"], service,
-                             relation_data["public_url"],
-                             relation_data["admin_url"],
-                             relation_data["internal_url"])
+    def add_endpoint(region, service, public_url, admin_url, internal_url):
+        desc = valid_services[service]["desc"]
+        service_type = valid_services[service]["type"]
+        create_service_entry(service, service_type, desc)
+        create_endpoint_template(region=region, service=service,
+                                 public_url=public_url,
+                                 admin_url=admin_url,
+                                 internal_url=internal_url)
+
+    settings = relation_get_dict()
+
+    # the minimum settings needed per endpoint
+    single = set(['service', 'region', 'public_url', 'admin_url',
+                  'internal_url'])
+    if single.issubset(settings):
+        # other end of relation advertised only one endpoint
+        ensure_valid_service(settings['service'])
+        add_endpoint(region=settings['region'], service=settings['service'],
+                     public_url=settings['public_url'],
+                     admin_url=settings['admin_url'],
+                     internal_url=settings['internal_url'])
+    else:
+        # assemble multiple endpoints from relation data. service name
+        # should be prepended to setting name, ie:
+        #  realtion-set ec2_service=$foo ec2_region=$foo ec2_public_url=$foo
+        #  relation-set nova_service=$foo nova_region=$foo nova_public_url=$foo
+        # Results in a dict that looks like:
+        # { 'ec2': {
+        #       'service': $foo
+        #       'region': $foo
+        #       'public_url': $foo
+        #   }
+        #   'nova': {
+        #       'service': $foo
+        #       'region': $foo
+        #       'public_url': $foo
+        #   }
+        # }
+        endpoints = {}
+        for k,v in settings.iteritems():
+            ep = k.split('_')[0]
+            x = '_'.join(k.split('_')[1:])
+            if ep not in  endpoints:
+                endpoints[ep] = {}
+            endpoints[ep][x] = v
+        for ep in endpoints:
+            # weed out any unrelated relation stuff Juju might have added
+            # by ensuring each possible endpiont has appropriate fields
+            #  ['service', 'region', 'public_url', 'admin_url', 'internal_url']
+            if single.issubset(endpoints[ep]):
+                ep = endpoints[ep]
+                ensure_valid_service(ep['service'])
+                add_endpoint(region=ep['region'], service=ep['service'],
+                             public_url=ep['public_url'],
+                             admin_url=ep['admin_url'],
+                             internal_url=ep['internal_url'])
+
     token = get_admin_token()
-    # we return a token, information about our API endpoints,
-    # and the name of the service registered.
+    # we return a token, information about our API endpoints
     relation_data = {
         "admin_token": token,
         "service_host": config["hostname"],
         "service_port": config["service-port"],
         "auth_host": config["hostname"],
-        "auth_port": config["admin-port"],
-        "service": service
+        "auth_port": config["admin-port"]
     }
     relation_set(relation_data)
 
