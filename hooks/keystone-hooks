@@ -17,6 +17,10 @@ valid_services = {
         "type": "compute",
         "desc": "Nova Compute Service"
     },
+    "ec2": {
+        "type": "ec2",
+        "desc": "EC2 Compatibility Layer"
+    },
     "glance": {
         "type": "image",
         "desc": "Glance Image Service"
@@ -34,6 +38,19 @@ def install_hook():
     execute("apt-get -y install %s" % packages, die=True, echo=True)
     update_config_block('DEFAULT', public_port=config["service-port"])
     update_config_block('DEFAULT', admin_port=config["admin-port"])
+
+    # Set or generate the keystone.conf admin token.  This can probably go 
+    # away soon since the admin tokens will be deprecated in favor of service
+    # tenants. http://etherpad.openstack.org/keystone-admin-config
+    if config['admin-token'] != "None":
+        juju_log("Configuring keystone.conf to use a preconfigured admin"\
+                 "token")
+        token = config['admin-token']
+    else:
+        juju_log("Generating an keystone.conf admin token.")
+        token = execute('pwgen -c 32 1', die=True)[0]
+    update_config_block('DEFAULT', admin_token=token)
+
     # set all backends to use sql+sqlite, if they are not already by default
     update_config_block('sql',
                         connection='sqlite:////var/lib/keystone/keystone.db')
@@ -103,14 +120,16 @@ def identity_changed():
                              relation_data["public_url"],
                              relation_data["admin_url"],
                              relation_data["internal_url"])
-    token = generate_admin_token(config)
-    # we return a token and information about our API endpoints
+    token = get_admin_token()
+    # we return a token, information about our API endpoints,
+    # and the name of the service registered.
     relation_data = {
         "admin_token": token,
         "service_host": config["hostname"],
         "service_port": config["service-port"],
         "auth_host": config["hostname"],
-        "auth_port": config["admin-port"]
+        "auth_port": config["admin-port"],
+        "service": service
     }
     relation_set(relation_data)
 
@@ -135,7 +154,7 @@ def keystone_changed():
     # create the requested admin role
     create_role(relation_data["role"],
                 config["admin-user"], config['admin-role'])
-    token = generate_admin_token(config)
+    token = get_admin_token()
     # Return token and API ports.  Let horizon find our hostname via
     # 'relation-get private-address'
     relation_data = {

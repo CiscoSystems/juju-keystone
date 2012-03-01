@@ -114,6 +114,20 @@ def relation_get(relation_data):
            results[r] = result
     return results
 
+def get_admin_token():
+    """Temporary utility to grab the admin token as configured in
+       keystone.conf
+    """
+    f = open(keystone_conf, 'r+')
+    for l in open(keystone_conf, 'r+').readlines():
+        if l.split(' ')[0] == 'admin_token':
+            try:
+                return l.split('=')[1].strip()
+            except:
+                error_out('Could not parse admin_token line from %s' %
+                          keystone_conf)
+    error_out('Could not find admin_token line in %s' % keystone_conf)
+
 def update_config_block(block, **kwargs):
     """ Updates keystone.conf blocks given kwargs.
     Can be used to update driver settings for a particular backend,
@@ -219,7 +233,7 @@ def create_service_entry(service_name, service_type, service_desc, owner=None):
     """ Add a new service entry to keystone if one does not already exist """
     import manager
     manager = manager.KeystoneManager(endpoint='http://localhost:35357/v2.0/',
-                                      token='ADMIN')
+                                      token=get_admin_token())
     for service in [s._info for s in manager.api.services.list()]:
         if service['name'] == service_name:
             juju_log("Service entry for '%s' already exists." % service_name)
@@ -235,7 +249,7 @@ def create_endpoint_template(region, service,  public_url, admin_url,
         exist matching name *and* region """
     import manager
     manager = manager.KeystoneManager(endpoint='http://localhost:35357/v2.0/',
-                                      token='ADMIN')
+                                      token=get_admin_token())
     service_id = manager.resolve_service_id(service)
     for ep in [e._info for e in manager.api.endpoints.list()]:
         if ep['service_id'] == service_id and ep['region'] == region:
@@ -255,7 +269,7 @@ def create_tenant(name):
     """ creates a tenant if it does not already exist """
     import manager
     manager = manager.KeystoneManager(endpoint='http://localhost:35357/v2.0/',
-                                      token='ADMIN')
+                                      token=get_admin_token())
     tenants = [t._info for t in manager.api.tenants.list()]
     if not tenants or name not in [t['name'] for t in tenants]:
         manager.api.tenants.create(tenant_name=name,
@@ -268,7 +282,7 @@ def create_user(name, password, tenant):
     """ creates a user if it doesn't already exist, as a member of tenant """
     import manager
     manager = manager.KeystoneManager(endpoint='http://localhost:35357/v2.0/',
-                                      token='ADMIN')
+                                      token=get_admin_token())
     users = [u._info for u in manager.api.users.list()]
     if not users or name not in [u['name'] for u in users]:
         tenant_id = manager.resolve_tenant_id(tenant)
@@ -278,7 +292,7 @@ def create_user(name, password, tenant):
                                  password=password,
                                  email='juju@localhost',
                                  tenant_id=tenant_id)
-        juju_log("Created new user '%s'" % name)
+        juju_log("Created new user '%s' pw: %s tenant: %s" % (name, password, tenant_id))
         return
     juju_log("A user named '%s' already exists" % name)
 
@@ -286,7 +300,7 @@ def create_role(name, user, tenant):
     """ creates a role if it doesn't already exist. grants role to user """
     import manager
     manager = manager.KeystoneManager(endpoint='http://localhost:35357/v2.0/',
-                                      token='ADMIN')
+                                      token=get_admin_token())
     roles = [r._info for r in manager.api.roles.list()]
     if not roles or name not in [r['name'] for r in roles]:
         manager.api.roles.create(name=name)
@@ -350,16 +364,6 @@ def ensure_initial_admin(config):
     create_role("KeystoneAdmin", config["admin-user"], 'admin')
     create_role("KeystoneServiceAdmin", config["admin-user"], 'admin')
     create_service_entry("keystone", "identity", "Keystone Identity Service")
-    # if we are using a shared admin-token, create it with with rest of initial
-    # admin credentials.
-#    if config["admin-token"] != "None":
-#        juju_log("Creating pre-configured, shared admin-token.")
-#        try:
-#            manager.api.add_token(config["admin-token"], config["admin-user"],
-#                                  "admin", config["token-expiry"])
-#        except:
-#            juju_log("Could not create admin token.  Already exists?")
-
     # following documentation here, perhaps we should be using juju
     # public/private addresses for public/internal urls.
     public_url = "http://%s:%s/v2.0" % (config["hostname"], config["service-port"])
