@@ -332,6 +332,20 @@ def create_role(name, user, tenant):
                                     tenant=tenant_id)
     juju_log("Granted role '%s' to '%s'" % (name, user))
 
+def grant_role(user, role, tenant):
+    """grant user+tenant a specific role"""
+    import manager
+    manager = manager.KeystoneManager(endpoint='http://localhost:35357/v2.0/',
+                                      token=get_admin_token())
+    juju_log("Granting user '%s' role '%s' on tenant ' %s'" %\
+                (user, role, tenant))
+    user_id = manager.resolve_user_id(user)
+    role_id = manager.resolve_role_id(role)
+    tenant_id = manager.resolve_tenant_id(tenant)
+    manager.api.roles.add_user_role(user=user_id,
+                                    role=role_id,
+                                    tenant=tenant_id)
+
 def generate_admin_token(config):
     """ generate and add an admin token """
     import manager
@@ -356,7 +370,7 @@ def ensure_initial_admin(config):
         changes?
     """
     create_tenant("admin")
-
+    create_tenant(config["service-tenant"])
     passwd = ""
     if config["admin-password"] != "None":
         passwd = config["admin-password"]
@@ -368,8 +382,8 @@ def ensure_initial_admin(config):
         passwd = execute("pwgen -c 16 1", die=True)[0]
         open(stored_passwd, 'w+').writelines("%s\n" % passwd)
 
-    create_user(config["admin-user"], passwd, tenant="admin")
-    create_role("Admin", config["admin-user"], 'admin')
+    create_user(config['admin-user'], passwd, tenant='admin')
+    create_role(config['admin-role'], config['admin-user'], 'admin')
     # TODO(adam_g): The following roles are likely not needed since redux merge
     create_role("KeystoneAdmin", config["admin-user"], 'admin')
     create_role("KeystoneServiceAdmin", config["admin-user"], 'admin')

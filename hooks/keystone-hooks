@@ -132,6 +132,7 @@ def identity_changed():
                      public_url=settings['public_url'],
                      admin_url=settings['admin_url'],
                      internal_url=settings['internal_url'])
+        service_username = settings['service']
     else:
         # assemble multiple endpoints from relation data. service name
         # should be prepended to setting name, ie:
@@ -156,6 +157,7 @@ def identity_changed():
             if ep not in  endpoints:
                 endpoints[ep] = {}
             endpoints[ep][x] = v
+        services = []
         for ep in endpoints:
             # weed out any unrelated relation stuff Juju might have added
             # by ensuring each possible endpiont has appropriate fields
@@ -167,15 +169,31 @@ def identity_changed():
                              public_url=ep['public_url'],
                              admin_url=ep['admin_url'],
                              internal_url=ep['internal_url'])
+                services.append(ep['service'])
+        service_username = '_'.join(services)
 
     token = get_admin_token()
-    # we return a token, information about our API endpoints
+
+    juju_log("Creating service credentials for '%s'" % service_username)
+    service_password = execute('pwgen -c 32 1', die=True)[0]
+    create_user(service_username, service_password, config['service-tenant'])
+    grant_role(service_username, config['admin-role'], config['service-tenant'])
+
+    # As of https://review.openstack.org/#change,4675, all nodes hosting
+    # an endpoint(s) needs a service username and password assigned to
+    # the service tenant and granted admin role.
+    # note: config['service-tenant'] is created in utils.ensure_initial_admin()
+    # we return a token, information about our API endpoints, and the generated
+    # service credentials
     relation_data = {
         "admin_token": token,
         "service_host": config["hostname"],
         "service_port": config["service-port"],
         "auth_host": config["hostname"],
-        "auth_port": config["admin-port"]
+        "auth_port": config["admin-port"],
+        "service_username": service_username,
+        "service_password": service_password,
+        "service_tenant": config['service-tenant']
     }
     relation_set(relation_data)
 

@@ -35,7 +35,6 @@ options:
     default: admin
     type: string
     description: "Default admin user to create and manage"
-  # Note: This should only be specified in config for testing purposes.
   admin-password:
     default: None
     type: string
@@ -44,10 +43,18 @@ options:
     default: None
     type: string
     description: "Admin token.  If set, this token will be used for all services instead of being generated per service."
+  admin-role:
+    default: 'Admin'
+    type: string
+    description: 'Admin role to be associated with admin and service users'
   token-expiry:
     default: "2017-02-05T00:00"
     type: string
     description: "Expiration date of generated admin tokens"
+  service-tenant:
+    default: "services"
+    type: string
+    description: "Name of tenant to associate service credentials."
   # Database settings used to request access via shared-db-relation-* relations
   database:
     default: "keystone"
