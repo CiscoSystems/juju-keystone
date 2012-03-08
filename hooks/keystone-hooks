@@ -17,6 +17,10 @@ valid_services = {
         "type": "compute",
         "desc": "Nova Compute Service"
     },
+    "nova-volume": {
+        "type": "volume",
+        "desc": "Nova Volume Service"
+    },
     "ec2": {
         "type": "ec2",
         "desc": "EC2 Compatibility Layer"
@@ -127,6 +131,17 @@ def identity_changed():
                   'internal_url'])
     if single.issubset(settings):
         # other end of relation advertised only one endpoint
+
+        # TODO(adam_g): Remove this hack once the features described
+        # at https://lists.ubuntu.com/archives/juju/2012-March/001342.html
+        # land.  In the meantime, allow remote units to pass service=None
+        # and treat it as a noop, so that service can do the reconfiguration
+        # it needs for keystone strategy without the need to register any
+        # services/endpoints in the catalog.  This is now required for backend
+        # nova components that dont expose endpoints (compute, specifically)
+        if 'None' in [v for k,v in settings.iteritems()]:
+            return
+
         ensure_valid_service(settings['service'])
         add_endpoint(region=settings['region'], service=settings['service'],
                      public_url=settings['public_url'],
@@ -172,8 +187,13 @@ def identity_changed():
                 services.append(ep['service'])
         service_username = '_'.join(services)
 
-    token = get_admin_token()
+    if 'None' in [v for k,v in settings.iteritems()]:
+        return
 
+    if not service_username:
+        return
+
+    token = get_admin_token()
     juju_log("Creating service credentials for '%s'" % service_username)
     service_password = execute('pwgen -c 32 1', die=True)[0]
     create_user(service_username, service_password, config['service-tenant'])
