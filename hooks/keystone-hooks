@@ -195,7 +195,16 @@ def identity_changed():
 
     token = get_admin_token()
     juju_log("Creating service credentials for '%s'" % service_username)
-    service_password = execute('pwgen -c 32 1', die=True)[0]
+
+    stored_passwd = '/var/lib/keystone/%s.passwd' % service_username
+    if os.path.isfile(stored_passwd):
+        juju_log("Loading stored service passwd from %s" % stored_passwd)
+        service_password = open(stored_passwd, 'r').readline().strip('\n')
+    else:
+        juju_log("Generating a new service password for %s" % service_username)
+        service_password = execute('pwgen -c 32 1', die=True)[0].strip()
+        open(stored_passwd, 'w+').writelines("%s\n" % service_password)
+
     create_user(service_username, service_password, config['service-tenant'])
     grant_role(service_username, config['admin-role'], config['service-tenant'])
 
