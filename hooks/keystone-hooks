@@ -226,45 +226,12 @@ def identity_changed():
     }
     relation_set(relation_data)
 
-def keystone_joined():
-    """
-    The keystone-service relations exist specifically for horizon.  Instead of
-    a token and entry in the service catalog (like other services), it requires
-    a token and a role.  It doesn't expose any endpoint that keystone needs to
-    care about, thus it relates to this unit via its own service relation.
-    """
-    pass
-
-def keystone_changed():
-    """ Horizon will request a default role, we create it and return a
-        token
-    """
-    options = ["role"]
-    relation_data = relation_get(options)
-    if len(relation_data) != len(options):
-        juju_log("Missing relation data.  Peer not ready, exit 0")
-        exit(0)
-    # create the requested admin role
-    create_role(relation_data["role"],
-                config["admin-user"], config['admin-role'])
-    token = get_admin_token()
-    # Return token and API ports.  Let horizon find our hostname via
-    # 'relation-get private-address'
-    relation_data = {
-        "service_port": config["service-port"],
-        "auth_port": config["admin-port"],
-        "admin_token": token
-    }
-    relation_set(relation_data)
-
 hooks = {
     "install": install_hook,
     "shared-db-relation-joined": db_joined,
     "shared-db-relation-changed": db_changed,
     "identity-service-relation-joined": identity_joined,
-    "identity-service-relation-changed": identity_changed,
-    "keystone-service-relation-joined": keystone_joined,
-    "keystone-service-relation-changed": keystone_changed
+    "identity-service-relation-changed": identity_changed
 }
 
 # keystone-hooks gets called by symlink corresponding to the requested relation

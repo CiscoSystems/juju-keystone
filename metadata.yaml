@@ -5,8 +5,6 @@ description: |
 provides:
   identity-service:
     interface: keystone
-  keystone-service:
-    interface: keystone
 requires:
   shared-db:
     interface: mysql-shared
