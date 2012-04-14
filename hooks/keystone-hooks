@@ -29,6 +29,10 @@ valid_services = {
         "type": "image",
         "desc": "Glance Image Service"
     },
+    "s3": {
+        "type": "s3",
+        "desc": "S3 Compatible object-store"
+    },
     "swift": {
         "type": "storage",
         "desc": "Swift Object Storage Service"
