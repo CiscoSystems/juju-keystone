@@ -1,7 +1,10 @@
 name: keystone
-summary: Proposed OpenStack identity service - Daemons
+summary: OpenStack identity service
+maintainer: Adam Gandelman <adamg@canonical.com>
 description: |
- Proposed OpenStack identity service - Daemons
+ Keystone is an OpenStack project that provides Identity, Token, Catalog and
+ Policy services for use specifically by projects in the OpenStack family. It
+ implements OpenStack’s Identity API.
 provides:
   identity-service:
     interface: keystone
