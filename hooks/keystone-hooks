@@ -230,12 +230,16 @@ def identity_changed():
     }
     relation_set(relation_data)
 
+def config_changed():
+    ensure_initial_admin(config)
+
 hooks = {
     "install": install_hook,
     "shared-db-relation-joined": db_joined,
     "shared-db-relation-changed": db_changed,
     "identity-service-relation-joined": identity_joined,
-    "identity-service-relation-changed": identity_changed
+    "identity-service-relation-changed": identity_changed,
+    "config-changed": config_changed
 }
 
 # keystone-hooks gets called by symlink corresponding to the requested relation

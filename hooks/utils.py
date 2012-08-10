@@ -379,6 +379,7 @@ def ensure_initial_admin(config):
     """
     create_tenant("admin")
     create_tenant(config["service-tenant"])
+
     passwd = ""
     if config["admin-password"] != "None":
         passwd = config["admin-password"]
@@ -391,6 +392,7 @@ def ensure_initial_admin(config):
         open(stored_passwd, 'w+').writelines("%s\n" % passwd)
 
     create_user(config['admin-user'], passwd, tenant='admin')
+    update_user_password(config['admin-user'], passwd)
     create_role(config['admin-role'], config['admin-user'], 'admin')
     # TODO(adam_g): The following roles are likely not needed since redux merge
     create_role("KeystoneAdmin", config["admin-user"], 'admin')
@@ -403,3 +405,16 @@ def ensure_initial_admin(config):
     internal_url = "http://%s:%s/v2.0" % (config["hostname"], config["service-port"])
     create_endpoint_template("RegionOne", "keystone", public_url,
                              admin_url, internal_url)
+
+def update_user_password(username, password):
+    import manager
+    manager = manager.KeystoneManager(endpoint='http://localhost:35357/v2.0/',
+                                      token=get_admin_token())
+    juju_log("Updating password for user '%s'" % username)
+
+    user_id = manager.resolve_user_id(username)
+    if user_id is None:
+        error_out("Could not resolve user id for '%s'" % username)
+
+    manager.api.users.update_password(user=user_id, password=password)
+    juju_log("Successfully updated password for user '%s'" % username)
