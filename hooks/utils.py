@@ -337,14 +337,22 @@ def grant_role(user, role, tenant):
     import manager
     manager = manager.KeystoneManager(endpoint='http://localhost:35357/v2.0/',
                                       token=get_admin_token())
-    juju_log("Granting user '%s' role '%s' on tenant ' %s'" %\
+    juju_log("Granting user '%s' role '%s' on tenant '%s'" %\
                 (user, role, tenant))
     user_id = manager.resolve_user_id(user)
     role_id = manager.resolve_role_id(role)
     tenant_id = manager.resolve_tenant_id(tenant)
-    manager.api.roles.add_user_role(user=user_id,
-                                    role=role_id,
-                                    tenant=tenant_id)
+
+    cur_roles =  manager.api.roles.roles_for_user(user_id, tenant_id)
+    if not cur_roles or role_id not in [r.id for r in cur_roles]:
+        manager.api.roles.add_user_role(user=user_id,
+                                        role=role_id,
+                                        tenant=tenant_id)
+        juju_log("Granted user '%s' role '%s' on tenant '%s'" %\
+                    (user, role, tenant))
+    else:
+        juju_log("User '%s' already has role '%s' on tenant '%s'" %\
+                    (user, role, tenant))
 
 def generate_admin_token(config):
     """ generate and add an admin token """
