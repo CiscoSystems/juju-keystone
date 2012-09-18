@@ -93,6 +93,17 @@ def config_get():
     config["hostname"] = execute("unit-get private-address")[0].strip()
     return config
 
+def relation_ids(relation_name=None):
+    j = execute('relation-ids --format=json %s' % relation_name)[0]
+    return json.loads(j)
+
+def relation_list(relation_id=None):
+    cmd = 'relation-list --format=json'
+    if relation_id:
+        cmd += ' -r %s' % relation_id
+    j = execute(cmd)[0]
+    return json.loads(j)
+
 def relation_set(relation_data):
     """ calls relation-set for all key=values in dict """
     for k in relation_data:
@@ -114,9 +125,17 @@ def relation_get(relation_data):
            results[r] = result
     return results
 
-def relation_get_dict():
+def relation_get_dict(relation_id=None, remote_unit=None):
     """Obtain all relation data as dict by way of JSON"""
-    j = execute('relation-get --format=json', die=True)[0]
+    cmd = 'relation-get --format=json'
+    if relation_id:
+        cmd += ' -r %s' % relation_id
+    if remote_unit:
+        remote_unit_orig = os.getenv('JUJU_REMOTE_UNIT', None)
+        os.environ['JUJU_REMOTE_UNIT'] = remote_unit
+    j = execute(cmd, die=True)[0]
+    if remote_unit and remote_unit_orig:
+        os.environ['JUJU_REMOTE_UNIT'] = remote_unit_orig
     d = json.loads(j)
     settings = {}
     # convert unicode to strings
