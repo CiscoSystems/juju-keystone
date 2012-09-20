@@ -346,10 +346,7 @@ def create_role(name, user, tenant):
         error_out("Could not resolve [user_id, role_id, tenant_id]" %
                    [user_id, role_id, tenant_id])
 
-    manager.api.roles.add_user_role(user=user_id,
-                                    role=role_id,
-                                    tenant=tenant_id)
-    juju_log("Granted role '%s' to '%s'" % (name, user))
+    grant_role(user, name, tenant)
 
 def grant_role(user, role, tenant):
     """grant user+tenant a specific role"""
