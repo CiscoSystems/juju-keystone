@@ -3,9 +3,13 @@ import subprocess
 import sys
 import json
 import os
+import time
+
+from lib.openstack_common import *
 
 keystone_conf = "/etc/keystone/keystone.conf"
 stored_passwd = "/var/lib/keystone/keystone.passwd"
+stored_token = "/var/lib/keystone/keystone.token"
 
 def execute(cmd, die=False, echo=False):
     """ Executes a command 
@@ -41,40 +45,6 @@ def execute(cmd, die=False, echo=False):
         error_out("ERROR: command %s return non-zero.\n" % cmd)
     return (stdout, stderr, rc)
 
-
-def juju_log(msg):
-    execute("juju-log \"%s\"" % msg)
-
-def error_out(msg):
-    juju_log("FATAL ERROR: %s" % msg)
-    exit(1)
-
-def setup_ppa(rel):
-    """ Configure a PPA prior to installing.
-    Currently, keystone-core only maintains a trunk PPA (unlike other
-    subprojects that maintain one for milestone + milestone-proposed)
-    Currently, supported options are 'trunk' or a custom PPA passed to config
-    as 'ppa:someproject/someppa'
-    """
-    if rel == "trunk":
-        ppa = "ppa:keystone-core/trunk"
-    elif rel[:4] == "ppa:":
-        ppa = rel
-    elif rel[:3] == "deb":
-        l = len(rel.split('|'))
-        if l ==  2:
-            ppa, key = rel.split('|')
-            juju_log("Importing PPA key from keyserver for %s" % ppa)
-            cmd = "apt-key adv --keyserver keyserver.ubuntu.com " \
-                  "--recv-keys %s" % key
-            execute(cmd, echo=True)
-        elif l == 1:
-            ppa = rel
-        else:
-            error_out("Invalid keystone-release: %s" % rel)
-    else:
-        error_out("Invalid keystone-release specified: %s" % rel)
-    subprocess.call(["add-apt-repository", "-y", ppa])
 
 def config_get():
     """ Obtain the units config via 'config-get' 
@@ -143,6 +113,28 @@ def relation_get_dict(relation_id=None, remote_unit=None):
         settings[str(k)] = str(v)
     return settings
 
+def set_admin_token(admin_token):
+    """Set admin token according to deployment config or use a randomly
+       generated token if none is specified (default).
+    """
+    if admin_token != 'None':
+        juju_log('Configuring Keystone to use a pre-configured admin token.')
+        token = admin_token
+    else:
+        juju_log('Configuring Keystone to use a random admin token.')
+        if os.path.isfile(stored_token):
+            msg = 'Loading a previously generated admin token from %s' % stored_token
+            juju_log(msg)
+            f = open(stored_token, 'r')
+            token = f.read().strip()
+            f.close()
+        else:
+            token = execute('pwgen -c 32 1', die=True)[0].strip()
+            out = open(stored_token, 'w')
+            out.write('%s\n' % token)
+            out.close()
+    update_config_block('DEFAULT', admin_token=token)
+
 def get_admin_token():
     """Temporary utility to grab the admin token as configured in
        keystone.conf
@@ -160,10 +152,10 @@ def get_admin_token():
 def update_config_block(block, **kwargs):
     """ Updates keystone.conf blocks given kwargs.
     Can be used to update driver settings for a particular backend,
-    setting the sql connection, etc. 
-    
+    setting the sql connection, etc.
+
     Parses block heading as '[block]'
-    
+
     If block does not exist, a new block will be created at end of file with
     given kwargs
     """
@@ -389,7 +381,7 @@ def ensure_initial_admin(config):
         This and the helper functions it calls are meant to be idempotent and
         run during install as well as during db-changed.  This will maintain
         the admin tenant, user, role, service entry and endpoint across every
-        datastore we might use. 
+        datastore we might use.
         TODO: Possibly migrate data from one backend to another after it
         changes?
     """
@@ -434,3 +426,54 @@ def update_user_password(username, password):
 
     manager.api.users.update_password(user=user_id, password=password)
     juju_log("Successfully updated password for user '%s'" % username)
+
+
+def do_openstack_upgrade(install_src, packages):
+    '''Upgrade packages from a given install src.'''
+
+    config = config_get()
+    old_vers = get_os_codename_package('keystone')
+    new_vers = get_os_codename_install_source(install_src)
+
+    juju_log("Beginning Keystone upgrade: %s -> %s" % (old_vers, new_vers))
+
+    # Backup previous config.
+    juju_log("Backing up contents of /etc/keystone.")
+    stamp = time.strftime('%Y%m%d%H%M')
+    cmd = 'tar -pcf /var/lib/juju/keystone-backup-%s.tar /etc/keystone' % stamp
+    execute(cmd, die=True, echo=True)
+
+    configure_installation_source(install_src)
+    execute('apt-get update', die=True, echo=True)
+    os.environ['DEBIAN_FRONTEND'] = 'noninteractive'
+    cmd = 'apt-get --option Dpkg::Options::=--force-confnew -y '\
+          'install %s' % packages
+    execute(cmd, echo=True, die=True)
+
+    # we have new, fresh config files that need updating.
+    # set the admin token, which is still stored in config.
+    set_admin_token(config['admin-token'])
+
+    # set the sql connection string if a shared-db relation is found.
+    ids = relation_ids(relation_name='shared-db')
+
+    if ids:
+        for id in ids:
+            for unit in relation_list(id):
+                juju_log('Configuring new keystone.conf for datbase access '\
+                         'on existing database relation to %s' % unit)
+                relation_data = relation_get_dict(relation_id=id,
+                                                  remote_unit=unit)
+
+                update_config_block('sql', connection="mysql://%s:%s@%s/%s" %
+                                        (config["database-user"],
+                                         relation_data["password"],
+                                         relation_data["private-address"],
+                                         config["database"]))
+
+    juju_log('Running database migrations for %s' % new_vers)
+    execute('service keystone stop', echo=True)
+    execute('keystone-manage db_sync', echo=True, die=True)
+    execute('service keystone start', echo=True)
+    time.sleep(5)
+    juju_log('Completed Keystone upgrade: %s -> %s' % (old_vers, new_vers))
