@@ -46,8 +46,8 @@ valid_services = {
 }
 
 def install_hook():
-    if config["keystone-release"] != "distro":
-        configure_installation_source(config["keystone-release"])
+    if config["openstack-origin"] != "distro":
+        configure_installation_source(config["openstack-origin"])
     execute("apt-get update", die=True)
     execute("apt-get -y install %s" % packages, die=True, echo=True)
     update_config_block('DEFAULT', public_port=config["service-port"])
@@ -231,11 +231,11 @@ def config_changed():
 
     # Determine whether or not we should do an upgrade, based on the
     # the version offered in keyston-release.
-    available = get_os_codename_install_source(config['keystone-release'])
+    available = get_os_codename_install_source(config['openstack-origin'])
     installed = get_os_codename_package('keystone')
 
     if get_os_version_codename(available) > get_os_version_codename(installed):
-        do_openstack_upgrade(config['keystone-release'], packages)
+        do_openstack_upgrade(config['openstack-origin'], packages)
 
     set_admin_token(config['admin-token'])
     ensure_initial_admin(config)

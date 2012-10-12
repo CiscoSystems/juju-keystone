@@ -141,7 +141,7 @@ def configure_installation_source(rel):
         elif l == 1:
             src = rel
         else:
-            error_out("Invalid keystone-release: %s" % rel)
+            error_out("Invalid openstack-release: %s" % rel)
     elif rel[:6] == 'cloud:':
         ubuntu_rel = lsb_release()['DISTRIB_CODENAME']
         rel = rel.split(':')[1]
@@ -175,6 +175,6 @@ def configure_installation_source(rel):
         src = "deb %s %s main" % (CLOUD_ARCHIVE_URL, pocket)
         _import_key(CLOUD_ARCHIVE_KEY_ID)
     else:
-        error_out("Invalid keystone-release specified: %s" % rel)
+        error_out("Invalid openstack-release specified: %s" % rel)
 
     subprocess.check_call(["add-apt-repository", "-y", src])
