@@ -276,13 +276,24 @@ def create_endpoint_template(region, service,  publicurl, adminurl,
         if ep['service_id'] == service_id and ep['region'] == region:
             juju_log("Endpoint template already exists for '%s' in '%s'"
                       % (service, region))
-            return
+
+            up_to_date = True
+            for k in ['publicurl', 'adminurl', 'internalurl']:
+                if ep[k] != locals()[k]:
+                    up_to_date = False
+
+            if up_to_date:
+                return
+            else:
+                # delete endpoint and recreate if endpoint urls need updating.
+                juju_log("Updating endpoint template with new endpoint urls.")
+                manager.api.endpoints.delete(ep['id'])
 
     manager.api.endpoints.create(region=region,
                                  service_id=service_id,
-                                 publicurl=public_url,
-                                 adminurl=admin_url,
-                                 internalurl=internal_url)
+                                 publicurl=publicurl,
+                                 adminurl=adminurl,
+                                 internalurl=internalurl)
     juju_log("Created new endpoint template for '%s' in '%s'" %
                 (region, service))
 
