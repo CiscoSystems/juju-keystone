@@ -264,8 +264,8 @@ def create_service_entry(service_name, service_type, service_desc, owner=None):
                                 description=service_desc)
     juju_log("Created new service entry '%s'" % service_name)
 
-def create_endpoint_template(region, service,  public_url, admin_url,
-                             internal_url):
+def create_endpoint_template(region, service,  publicurl, adminurl,
+                             internalurl):
     """ Create a new endpoint template for service if one does not already
         exist matching name *and* region """
     import manager
