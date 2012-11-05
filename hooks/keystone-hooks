@@ -36,6 +36,10 @@ valid_services = {
     "swift": {
         "type": "storage",
         "desc": "Swift Object Storage Service"
+    },
+    "quantum": {
+        "type": "network",
+        "desc": "Network Management Service"
     }
 }
 
