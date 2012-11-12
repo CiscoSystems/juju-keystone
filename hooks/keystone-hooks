@@ -40,6 +40,10 @@ valid_services = {
     "quantum": {
         "type": "network",
         "desc": "Network Management Service"
+    },
+    "cinder": {
+        "type": "volume",
+        "desc": "Cinder Volume Service"
     }
 }
 
@@ -120,7 +124,7 @@ def identity_changed():
     def ensure_valid_service(service):
         if service not in valid_services.keys():
             juju_log("WARN: Invalid service requested: '%s'" % service)
-            realtion_set({ "admin_token": -1 })
+            relation_set({ "admin_token": -1 })
             return
 
     def add_endpoint(region, service, public_url, admin_url, internal_url):
