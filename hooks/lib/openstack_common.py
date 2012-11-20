@@ -10,7 +10,8 @@ CLOUD_ARCHIVE_KEY_ID = '5EDB1B62EC4926EA'
 ubuntu_openstack_release = {
     'oneiric': 'diablo',
     'precise': 'essex',
-    'quantal': 'folsom'
+    'quantal': 'folsom',
+    'raring' : 'grizzly'
 }
 
 
@@ -59,6 +60,12 @@ def get_os_codename_install_source(src):
         ca_rel = src.split(':')[1]
         ca_rel = ca_rel.split('%s-' % ubuntu_rel)[1].split('/')[0]
         return ca_rel
+
+    # Best guess match based on deb string provided
+    if src.startswith('deb'):
+        for k, v in openstack_codenames.iteritems():
+            if v in src:
+                return v
 
 def get_os_codename_version(vers):
     '''Determine OpenStack codename from version number.'''
