@@ -132,6 +132,7 @@ def configure_installation_source(rel):
         return
     elif rel[:4] == "ppa:":
         src = rel
+        subprocess.check_call(["add-apt-repository", "-y", src])
     elif rel[:3] == "deb":
         l = len(rel.split('|'))
         if l ==  2:
@@ -142,6 +143,9 @@ def configure_installation_source(rel):
             src = rel
         else:
             error_out("Invalid openstack-release: %s" % rel)
+
+        with open('/etc/apt/sources.list.d/juju_deb.list', 'w') as f:
+            f.write(src)
     elif rel[:6] == 'cloud:':
         ubuntu_rel = lsb_release()['DISTRIB_CODENAME']
         rel = rel.split(':')[1]
@@ -174,7 +178,9 @@ def configure_installation_source(rel):
 
         src = "deb %s %s main" % (CLOUD_ARCHIVE_URL, pocket)
         _import_key(CLOUD_ARCHIVE_KEY_ID)
+
+        with open('/etc/apt/sources.list.d/cloud-archive.list', 'w') as f:
+            f.write(src)
     else:
         error_out("Invalid openstack-release specified: %s" % rel)
 
-    subprocess.check_call(["add-apt-repository", "-y", src])
