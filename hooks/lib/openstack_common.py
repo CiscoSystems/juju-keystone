@@ -132,7 +132,7 @@ def configure_installation_source(rel):
         return
     elif rel[:4] == "ppa:":
         src = rel
-    elif rel[:4] == "deb:":
+    elif rel[:3] == "deb":
         l = len(rel.split('|'))
         if l ==  2:
             src, key = rel.split('|')
