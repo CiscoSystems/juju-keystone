@@ -10,7 +10,8 @@ CLOUD_ARCHIVE_KEY_ID = '5EDB1B62EC4926EA'
 ubuntu_openstack_release = {
     'oneiric': 'diablo',
     'precise': 'essex',
-    'quantal': 'folsom'
+    'quantal': 'folsom',
+    'raring' : 'grizzly'
 }
 
 
@@ -59,6 +60,12 @@ def get_os_codename_install_source(src):
         ca_rel = src.split(':')[1]
         ca_rel = ca_rel.split('%s-' % ubuntu_rel)[1].split('/')[0]
         return ca_rel
+
+    # Best guess match based on deb string provided
+    if src.startswith('deb'):
+        for k, v in openstack_codenames.iteritems():
+            if v in src:
+                return v
 
 def get_os_codename_version(vers):
     '''Determine OpenStack codename from version number.'''
@@ -132,7 +139,8 @@ def configure_installation_source(rel):
         return
     elif rel[:4] == "ppa:":
         src = rel
-    elif rel[:4] == "deb:":
+        subprocess.check_call(["add-apt-repository", "-y", src])
+    elif rel[:3] == "deb":
         l = len(rel.split('|'))
         if l ==  2:
             src, key = rel.split('|')
@@ -142,6 +150,9 @@ def configure_installation_source(rel):
             src = rel
         else:
             error_out("Invalid openstack-release: %s" % rel)
+
+        with open('/etc/apt/sources.list.d/juju_deb.list', 'w') as f:
+            f.write(src)
     elif rel[:6] == 'cloud:':
         ubuntu_rel = lsb_release()['DISTRIB_CODENAME']
         rel = rel.split(':')[1]
@@ -174,7 +185,9 @@ def configure_installation_source(rel):
 
         src = "deb %s %s main" % (CLOUD_ARCHIVE_URL, pocket)
         _import_key(CLOUD_ARCHIVE_KEY_ID)
+
+        with open('/etc/apt/sources.list.d/cloud-archive.list', 'w') as f:
+            f.write(src)
     else:
         error_out("Invalid openstack-release specified: %s" % rel)
 
-    subprocess.check_call(["add-apt-repository", "-y", src])
