@@ -250,10 +250,11 @@ def keystone_conf_update(opt, val):
         f.write("%s\n" % l)
     f.close
 
-def create_service_entry(service_name, service_type, service_desc, owner=None):
+def create_service_entry(service_name, service_type, service_desc, endpoint=None, owner=None):
     """ Add a new service entry to keystone if one does not already exist """
     import manager
-    manager = manager.KeystoneManager(endpoint='http://localhost:35357/v2.0/',
+    endpoint = endpoint or 'http://localhost:35357/v2.0/'
+    manager = manager.KeystoneManager(endpoint=endpoint,
                                       token=get_admin_token())
     for service in [s._info for s in manager.api.services.list()]:
         if service['name'] == service_name:
@@ -265,11 +266,12 @@ def create_service_entry(service_name, service_type, service_desc, owner=None):
     juju_log("Created new service entry '%s'" % service_name)
 
 def create_endpoint_template(region, service,  public_url, admin_url,
-                             internal_url):
+                             internal_url, endpoint=None):
     """ Create a new endpoint template for service if one does not already
         exist matching name *and* region """
     import manager
-    manager = manager.KeystoneManager(endpoint='http://localhost:35357/v2.0/',
+    endpoint = endpoint or 'http://localhost:35357/v2.0/'
+    manager = manager.KeystoneManager(endpoint=endpoint,
                                       token=get_admin_token())
     service_id = manager.resolve_service_id(service)
     for ep in [e._info for e in manager.api.endpoints.list()]:
@@ -286,10 +288,11 @@ def create_endpoint_template(region, service,  public_url, admin_url,
     juju_log("Created new endpoint template for '%s' in '%s'" %
                 (region, service))
 
-def create_tenant(name):
+def create_tenant(name, endpoint=None):
     """ creates a tenant if it does not already exist """
     import manager
-    manager = manager.KeystoneManager(endpoint='http://localhost:35357/v2.0/',
+    endpoint = endpoint or 'http://localhost:35357/v2.0/'
+    manager = manager.KeystoneManager(endpoint=endpoint,
                                       token=get_admin_token())
     tenants = [t._info for t in manager.api.tenants.list()]
     if not tenants or name not in [t['name'] for t in tenants]:
@@ -299,10 +302,11 @@ def create_tenant(name):
         return
     juju_log("Tenant '%s' already exists." % name)
 
-def create_user(name, password, tenant):
+def create_user(name, password, tenant, endpoint=None):
     """ creates a user if it doesn't already exist, as a member of tenant """
     import manager
-    manager = manager.KeystoneManager(endpoint='http://localhost:35357/v2.0/',
+    endpoint = endpoint or 'http://localhost:35357/v2.0/'
+    manager = manager.KeystoneManager(endpoint=endpoint,
                                       token=get_admin_token())
     users = [u._info for u in manager.api.users.list()]
     if not users or name not in [u['name'] for u in users]:
@@ -317,10 +321,11 @@ def create_user(name, password, tenant):
         return
     juju_log("A user named '%s' already exists" % name)
 
-def create_role(name, user, tenant):
+def create_role(name, user, tenant, endpoint=None):
     """ creates a role if it doesn't already exist. grants role to user """
     import manager
-    manager = manager.KeystoneManager(endpoint='http://localhost:35357/v2.0/',
+    endpoint = endpoint or 'http://localhost:35357/v2.0/'
+    manager = manager.KeystoneManager(endpoint=endpoint,
                                       token=get_admin_token())
     roles = [r._info for r in manager.api.roles.list()]
     if not roles or name not in [r['name'] for r in roles]:
@@ -338,12 +343,13 @@ def create_role(name, user, tenant):
         error_out("Could not resolve [user_id, role_id, tenant_id]" %
                    [user_id, role_id, tenant_id])
 
-    grant_role(user, name, tenant)
+    grant_role(user, name, tenant, endpoint)
 
-def grant_role(user, role, tenant):
+def grant_role(user, role, tenant, endpoint=None):
     """grant user+tenant a specific role"""
     import manager
-    manager = manager.KeystoneManager(endpoint='http://localhost:35357/v2.0/',
+    endpoint = endpoint or 'http://localhost:35357/v2.0/'
+    manager = manager.KeystoneManager(endpoint=endpoint,
                                       token=get_admin_token())
     juju_log("Granting user '%s' role '%s' on tenant '%s'" %\
                 (user, role, tenant))
@@ -365,8 +371,10 @@ def grant_role(user, role, tenant):
 def generate_admin_token(config):
     """ generate and add an admin token """
     import manager
-    manager = manager.KeystoneManager(endpoint='http://localhost:35357/v2.0/',
-                                      token='ADMIN')
+    manager = manager.KeystoneManager(
+                        endpoint='http://%s:35357/v2.0/' % config['hostname'],
+                        token='ADMIN'
+                        )
     if config["admin-token"] == "None":
         import random
         token = random.randrange(1000000000000, 9999999999999)
@@ -385,8 +393,11 @@ def ensure_initial_admin(config):
         TODO: Possibly migrate data from one backend to another after it
         changes?
     """
-    create_tenant("admin")
-    create_tenant(config["service-tenant"])
+    endpoint = 'http://{}:35357/v2.0/'.format(config['hostname'])
+    create_tenant("admin",
+                  endpoint=endpoint)
+    create_tenant(config["service-tenant"],
+                  endpoint=endpoint)
 
     passwd = ""
     if config["admin-password"] != "None":
@@ -399,24 +410,31 @@ def ensure_initial_admin(config):
         passwd = execute("pwgen -c 16 1", die=True)[0]
         open(stored_passwd, 'w+').writelines("%s\n" % passwd)
 
-    create_user(config['admin-user'], passwd, tenant='admin')
-    update_user_password(config['admin-user'], passwd)
-    create_role(config['admin-role'], config['admin-user'], 'admin')
+    create_user(config['admin-user'], passwd, tenant='admin',
+                endpoint=endpoint)
+    update_user_password(config['admin-user'], passwd,
+                         endpoint=endpoint)
+    create_role(config['admin-role'], config['admin-user'], 'admin',
+                endpoint=endpoint)
     # TODO(adam_g): The following roles are likely not needed since redux merge
-    create_role("KeystoneAdmin", config["admin-user"], 'admin')
-    create_role("KeystoneServiceAdmin", config["admin-user"], 'admin')
-    create_service_entry("keystone", "identity", "Keystone Identity Service")
+    create_role("KeystoneAdmin", config["admin-user"], 'admin',
+                endpoint=endpoint)
+    create_role("KeystoneServiceAdmin", config["admin-user"], 'admin',
+                endpoint=endpoint)
+    create_service_entry("keystone", "identity", "Keystone Identity Service",
+                         endpoint=endpoint)
     # following documentation here, perhaps we should be using juju
     # public/private addresses for public/internal urls.
     public_url = "http://%s:%s/v2.0" % (config["hostname"], config["service-port"])
     admin_url = "http://%s:%s/v2.0" % (config["hostname"], config["admin-port"])
     internal_url = "http://%s:%s/v2.0" % (config["hostname"], config["service-port"])
     create_endpoint_template("RegionOne", "keystone", public_url,
-                             admin_url, internal_url)
+                             admin_url, internal_url, endpoint=endpoint)
 
-def update_user_password(username, password):
+def update_user_password(username, password, endpoint=None):
     import manager
-    manager = manager.KeystoneManager(endpoint='http://localhost:35357/v2.0/',
+    endpoint = endpoint or 'http://localhost:35357/v2.0/'
+    manager = manager.KeystoneManager(endpoint=endpoint,
                                       token=get_admin_token())
     juju_log("Updating password for user '%s'" % username)
 

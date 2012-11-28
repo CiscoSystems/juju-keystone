@@ -11,3 +11,6 @@ provides:
 requires:
   shared-db:
     interface: mysql-shared
+peers:
+  cluster:
+    interface: keystone-ha

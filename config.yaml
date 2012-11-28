@@ -75,3 +75,7 @@ options:
     default: "keystone"
     type: string
     description: "Database username"
+  # HA configuration settings
+  vip:
+    type: string
+    description: "Virtual IP to use to front keystone in ha configuration"

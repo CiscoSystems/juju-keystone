@@ -8,7 +8,9 @@ from lib.openstack_common import *
 
 config = config_get()
 
-packages = "keystone python-mysqldb pwgen"
+LOCAL_ENDPOINT = "http://{}:35357/v2.0/".format(config['hostname'])
+
+packages = "keystone python-mysqldb pwgen haproxy"
 service = "keystone"
 
 # used to verify joined services are valid openstack components.
@@ -60,6 +62,7 @@ def install_hook():
     execute("apt-get -y install %s" % packages, die=True, echo=True)
     update_config_block('DEFAULT', public_port=config["service-port"])
     update_config_block('DEFAULT', admin_port=config["admin-port"])
+    update_config_block('DEFAULT', bind_host=config["hostname"])
     set_admin_token(config['admin-token'])
 
     # set all backends to use sql+sqlite, if they are not already by default
@@ -131,11 +134,12 @@ def identity_changed(relation_id=None, remote_unit=None):
     def add_endpoint(region, service, public_url, admin_url, internal_url):
         desc = valid_services[service]["desc"]
         service_type = valid_services[service]["type"]
-        create_service_entry(service, service_type, desc)
+        create_service_entry(service, service_type, desc, LOCAL_ENDPOINT)
         create_endpoint_template(region=region, service=service,
                                  public_url=public_url,
                                  admin_url=admin_url,
-                                 internal_url=internal_url)
+                                 internal_url=internal_url,
+                                 endpoint=LOCAL_ENDPOINT)
 
     settings = relation_get_dict(relation_id=relation_id,
                                  remote_unit=remote_unit)
@@ -214,7 +218,8 @@ def identity_changed(relation_id=None, remote_unit=None):
         service_password = execute('pwgen -c 32 1', die=True)[0].strip()
         open(stored_passwd, 'w+').writelines("%s\n" % service_password)
 
-    create_user(service_username, service_password, config['service-tenant'])
+    create_user(service_username, service_password, config['service-tenant'],
+                endpoint=LOCAL_ENDPOINT)
     grant_role(service_username, config['admin-role'], config['service-tenant'])
 
     # As of https://review.openstack.org/#change,4675, all nodes hosting
@@ -247,6 +252,33 @@ def config_changed():
 
     set_admin_token(config['admin-token'])
     ensure_initial_admin(config)
+    
+    cluster_changed()
+
+
+def upgrade_charm():
+    cluster_changed()    
+
+
+SERVICE_PORTS = {
+    "keystone_admin": config['admin-port'],
+    "keystone_service": config['service-port']             
+    }
+
+                    
+def cluster_changed():
+    cluster_hosts = {}
+    cluster_hosts['self'] = config['hostname']
+    for r_id in relation_ids('cluster'):
+        for unit in relation_list(r_id):
+            cluster_hosts[unit.replace('/','-')] = \
+                relation_get_dict(relation_id=r_id,
+                                  remote_unit=unit)['private-address']
+    ip_address = config['vip'] or 'localhost'
+    configure_haproxy(ip_address,
+                      cluster_hosts,
+                      SERVICE_PORTS)
+    execute("service haproxy restart", echo=True)
 
 hooks = {
     "install": install_hook,
@@ -254,7 +286,10 @@ hooks = {
     "shared-db-relation-changed": db_changed,
     "identity-service-relation-joined": identity_joined,
     "identity-service-relation-changed": identity_changed,
-    "config-changed": config_changed
+    "config-changed": config_changed,
+    "cluster-relation-changed": cluster_changed,
+    "cluster-relation-departed": cluster_changed,
+    "upgrade-charm": upgrade_charm
 }
 
 # keystone-hooks gets called by symlink corresponding to the requested relation
