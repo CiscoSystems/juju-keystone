@@ -2,7 +2,9 @@
 
 import sys
 import time
+
 from utils import *
+from lib.openstack_common import *
 
 config = config_get()
 
@@ -20,6 +22,10 @@ valid_services = {
     "nova-volume": {
         "type": "volume",
         "desc": "Nova Volume Service"
+    },
+    "cinder": {
+        "type": "volume",
+        "desc": "Cinder Volume Service"
     },
     "ec2": {
         "type": "ec2",
@@ -48,24 +54,13 @@ valid_services = {
 }
 
 def install_hook():
-    if config["keystone-release"] != "distro":
-        setup_ppa(config["keystone-release"])
+    if config["openstack-origin"] != "distro":
+        configure_installation_source(config["openstack-origin"])
     execute("apt-get update", die=True)
     execute("apt-get -y install %s" % packages, die=True, echo=True)
     update_config_block('DEFAULT', public_port=config["service-port"])
     update_config_block('DEFAULT', admin_port=config["admin-port"])
-
-    # Set or generate the keystone.conf admin token.  This can probably go 
-    # away soon since the admin tokens will be deprecated in favor of service
-    # tenants. http://etherpad.openstack.org/keystone-admin-config
-    if config['admin-token'] != "None":
-        juju_log("Configuring keystone.conf to use a preconfigured admin"\
-                 "token")
-        token = config['admin-token']
-    else:
-        juju_log("Generating an keystone.conf admin token.")
-        token = execute('pwgen -c 32 1', die=True)[0]
-    update_config_block('DEFAULT', admin_token=token)
+    set_admin_token(config['admin-token'])
 
     # set all backends to use sql+sqlite, if they are not already by default
     update_config_block('sql',
@@ -80,9 +75,6 @@ def install_hook():
                         driver='keystone.contrib.ec2.backends.sql.Ec2')
     execute("service keystone stop", echo=True)
     execute("keystone-manage db_sync")
-    #NOTE(adam_g): This chown can be removed once packaging switches to sql
-    # and does this for us
-    execute("chown keystone /var/lib/keystone/ -R")
     execute("service keystone start", echo=True)
     time.sleep(5)
     ensure_initial_admin(config)
@@ -94,8 +86,9 @@ def db_joined():
     relation_set(relation_data)
 
 def db_changed():
-    relation_data = relation_get(["private-address", "password"])
-    if len(relation_data) != 2:
+    relation_data = relation_get_dict()
+    if ('password' not in relation_data or
+        'private-address' not in relation_data):
         juju_log("private-address or password not set. Peer not ready, exit 0")
         exit(0)
     update_config_block('sql', connection="mysql://%s:%s@%s/%s" %
@@ -109,18 +102,26 @@ def db_changed():
     time.sleep(5)
     ensure_initial_admin(config)
 
+    # If the backend database has been switched to something new and there
+    # are existing identity-service relations,, service entries need to be
+    # recreated in the new database.  Re-executing identity-service-changed
+    # will do this.
+    for id in relation_ids(relation_name='identity-service'):
+        for unit in relation_list(relation_id=id):
+            juju_log("Re-exec'ing identity-service-changed for: %s - %s" %
+                     (id, unit))
+            identity_changed(relation_id=id, remote_unit=unit)
+
 def identity_joined():
     """ Do nothing until we get information about requested service """
     pass
 
-def identity_changed():
-    """ A service has advertised its API endpoints, create an entry in the 
-        service catalog. """
-    # TODO(adm_g): Need to add this type of logic back
-    #relation_data = relation_get(options)
-    #if len(relation_data) != len(options):
-    #    juju_log("Missing relation data.  Peer not ready, exit 0")
-    #    exit(0)
+def identity_changed(relation_id=None, remote_unit=None):
+    """ A service has advertised its API endpoints, create an entry in the
+        service catalog.
+        Optionally allow this hook to be re-fired for an existing
+        relation+unit, for context see see db_changed().
+    """
     def ensure_valid_service(service):
         if service not in valid_services.keys():
             juju_log("WARN: Invalid service requested: '%s'" % service)
@@ -136,7 +137,8 @@ def identity_changed():
                                  admin_url=admin_url,
                                  internal_url=internal_url)
 
-    settings = relation_get_dict()
+    settings = relation_get_dict(relation_id=relation_id,
+                                 remote_unit=remote_unit)
 
     # the minimum settings needed per endpoint
     single = set(['service', 'region', 'public_url', 'admin_url',
@@ -144,14 +146,9 @@ def identity_changed():
     if single.issubset(settings):
         # other end of relation advertised only one endpoint
 
-        # TODO(adam_g): Remove this hack once the features described
-        # at https://lists.ubuntu.com/archives/juju/2012-March/001342.html
-        # land.  In the meantime, allow remote units to pass service=None
-        # and treat it as a noop, so that service can do the reconfiguration
-        # it needs for keystone strategy without the need to register any
-        # services/endpoints in the catalog.  This is now required for backend
-        # nova components that dont expose endpoints (compute, specifically)
         if 'None' in [v for k,v in settings.iteritems()]:
+            # Some backend services advertise no endpoint but require a
+            # hook execution to update auth strategy.
             return
 
         ensure_valid_service(settings['service'])
@@ -239,6 +236,16 @@ def identity_changed():
     relation_set(relation_data)
 
 def config_changed():
+
+    # Determine whether or not we should do an upgrade, based on the
+    # the version offered in keyston-release.
+    available = get_os_codename_install_source(config['openstack-origin'])
+    installed = get_os_codename_package('keystone')
+
+    if get_os_version_codename(available) > get_os_version_codename(installed):
+        do_openstack_upgrade(config['openstack-origin'], packages)
+
+    set_admin_token(config['admin-token'])
     ensure_initial_admin(config)
 
 hooks = {
