@@ -19,7 +19,7 @@ openstack_codenames = {
     '2011.2': 'diablo',
     '2012.1': 'essex',
     '2012.2': 'folsom',
-    '2012.3': 'grizzly'
+    '2013.1': 'grizzly'
 }
 
 
