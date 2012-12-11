@@ -201,6 +201,13 @@ defaults
     timeout client 1000
     timeout server 1000
 
+listen stats :8888
+    mode http
+    stats enable
+    stats hide-version
+    stats realm Haproxy\ Statistics
+    stats uri /
+    stats auth admin:password
 """
 SERVICE_FRAGMENT = """listen {0} {1}:{2}
     balance  roundrobin

@@ -79,3 +79,15 @@ options:
   vip:
     type: string
     description: "Virtual IP to use to front keystone in ha configuration"
+  ha-bindiface:
+    type: string
+    default: eth0
+    description: |
+      Default network interface on which HA cluster will bind to communication
+      with the other members of the HA Cluster.
+  ha-mcastport:
+    type: int
+    default: 5406
+    description: |
+      Default multicast port number that will be used to communicate between
+      HA Cluster nodes.
