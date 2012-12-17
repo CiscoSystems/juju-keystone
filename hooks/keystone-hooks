@@ -294,7 +294,8 @@ def ha_relation():
         }
     # TODO: Obtain netmask and nic where to place VIP.
     resource_params = {
-            'res_ks_vip':'params ip="%s" cidr_netmask="24" nic="eth0"' % config['vip'],
+            'res_ks_vip':'params ip="%s" cidr_netmask="%s" nic="%s"' % (config['vip'],
+                              config['vip_cidr'], config['vip_iface'])
             'res_ks_haproxy':'op monitor interval="5s"'
         }
     init_services = {
