@@ -8,8 +8,6 @@ from lib.openstack_common import *
 
 config = config_get()
 
-LOCAL_ENDPOINT = "http://{}:35357/v2.0/".format(config['hostname'])
-
 packages = "keystone python-mysqldb pwgen haproxy"
 service = "keystone"
 
@@ -47,11 +45,7 @@ valid_services = {
     },
     "quantum": {
         "type": "network",
-        "desc": "Network Management Service"
-    },
-    "cinder": {
-        "type": "volume",
-        "desc": "Cinder Volume Service"
+        "desc": "Quantum Networking Service"
     }
 }
 
@@ -238,6 +232,13 @@ def identity_changed(relation_id=None, remote_unit=None):
         "service_password": service_password,
         "service_tenant": config['service-tenant']
     }
+    # Check if clustered and use vip + haproxy ports if so
+    if is_clustered():
+        relation_data["auth_host"] = config['vip']
+        relation_data["auth_port"] = SERVICE_PORTS['keystone_admin']
+        relation_data["service_host"] = config['vip']
+        relation_data["service_port"] = SERVICE_PORTS['keystone_service']
+
     relation_set(relation_data)
 
 def config_changed():
@@ -323,6 +324,96 @@ def ha_relation():
                    groups=groups)
 
 
+    cluster_changed()
+
+
+def upgrade_charm():
+    cluster_changed()
+
+
+SERVICE_PORTS = {
+    "keystone_admin": int(config['admin-port']) + 1,
+    "keystone_service": int(config['service-port']) + 1
+    }
+
+
+def cluster_changed():
+    cluster_hosts = {}
+    cluster_hosts['self'] = config['hostname']
+    for r_id in relation_ids('cluster'):
+        for unit in relation_list(r_id):
+            cluster_hosts[unit.replace('/','-')] = \
+                relation_get_dict(relation_id=r_id,
+                                  remote_unit=unit)['private-address']
+    configure_haproxy(cluster_hosts,
+                      SERVICE_PORTS)
+
+
+def ha_relation_changed():
+    relation_data = relation_get_dict()
+    if 'clustered' in relation_data:
+        # Tell all related services to start using
+        # the VIP and haproxy ports instead
+        for r_id in relation_ids('identity-service'):
+            relation_set_2(rid=r_id,
+                           auth_host=config['vip'],
+                           service_host=config['vip'],
+                           service_port=SERVICE_PORTS['keystone_service'],
+                           auth_port=SERVICE_PORTS['keystone_admin'])
+
+
+def is_clustered():
+    for r_id in relation_ids('ha'):
+        for unit in relation_list(r_id):
+            relation_data = \
+                relation_get_dict(relation_id=r_id,
+                                  remote_unit=unit)
+            if 'clustered' in relation_data:
+                return True
+    return False
+
+
+def ha_relation_joined():
+    # Obtain the config values necessary for the cluster config. These
+    # include multicast port and interface to bind to.
+    corosync_bindiface = config['ha-bindiface']
+    corosync_mcastport = config['ha-mcastport']
+
+    # Obtain resources
+    resources = {
+            'res_ks_vip':'ocf:heartbeat:IPaddr2',
+            'res_ks_haproxy':'lsb:haproxy'
+        }
+    # TODO: Obtain netmask and nic where to place VIP.
+    resource_params = {
+            'res_ks_vip':'params ip="%s" cidr_netmask="24" nic="eth0"' % config['vip'],
+            'res_ks_haproxy':'op monitor interval="5s"'
+        }
+    init_services = {
+            'res_ks_haproxy':'haproxy'
+        }
+    groups = {
+            'grp_ks_haproxy':'res_ks_vip res_ks_haproxy'
+        }
+    #clones = {
+    #        'cln_ks_haproxy':'res_ks_haproxy meta globally-unique="false" interleave="true"'
+    #    }
+
+    #orders = {
+    #        'ord_vip_before_haproxy':'inf: res_ks_vip res_ks_haproxy'
+    #    }
+    #colocations = {
+    #        'col_vip_on_haproxy':'inf: res_ks_haproxy res_ks_vip'
+    #    }
+
+    relation_set_2(init_services=init_services,
+                   corosync_bindiface=corosync_bindiface,
+                   corosync_mcastport=corosync_mcastport,
+                   resources=resources,
+                   resource_params=resource_params,
+                   groups=groups)
+
+
 hooks = {
     "install": install_hook,
     "shared-db-relation-joined": db_joined,
@@ -332,7 +423,8 @@ hooks = {
     "config-changed": config_changed,
     "cluster-relation-changed": cluster_changed,
     "cluster-relation-departed": cluster_changed,
-    "ha-relation-joined": ha_relation,
+    "ha-relation-joined": ha_relation_joined,
+    "ha-relation-changed": ha_relation_changed,
     "upgrade-charm": upgrade_charm
 }
 
