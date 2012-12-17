@@ -125,15 +125,14 @@ def identity_changed(relation_id=None, remote_unit=None):
             relation_set({ "admin_token": -1 })
             return
 
-    def add_endpoint(region, service, public_url, admin_url, internal_url):
+    def add_endpoint(region, service, publicurl, adminurl, internalurl):
         desc = valid_services[service]["desc"]
         service_type = valid_services[service]["type"]
         create_service_entry(service, service_type, desc, LOCAL_ENDPOINT)
         create_endpoint_template(region=region, service=service,
-                                 public_url=public_url,
-                                 admin_url=admin_url,
-                                 internal_url=internal_url,
-                                 endpoint=LOCAL_ENDPOINT)
+                                 publicurl=publicurl,
+                                 adminurl=adminurl,
+                                 internalurl=internalurl)
 
     settings = relation_get_dict(relation_id=relation_id,
                                  remote_unit=remote_unit)
@@ -151,9 +150,9 @@ def identity_changed(relation_id=None, remote_unit=None):
 
         ensure_valid_service(settings['service'])
         add_endpoint(region=settings['region'], service=settings['service'],
-                     public_url=settings['public_url'],
-                     admin_url=settings['admin_url'],
-                     internal_url=settings['internal_url'])
+                     publicurl=settings['public_url'],
+                     adminurl=settings['admin_url'],
+                     internalurl=settings['internal_url'])
         service_username = settings['service']
     else:
         # assemble multiple endpoints from relation data. service name
@@ -188,9 +187,9 @@ def identity_changed(relation_id=None, remote_unit=None):
                 ep = endpoints[ep]
                 ensure_valid_service(ep['service'])
                 add_endpoint(region=ep['region'], service=ep['service'],
-                             public_url=ep['public_url'],
-                             admin_url=ep['admin_url'],
-                             internal_url=ep['internal_url'])
+                             publicurl=ep['public_url'],
+                             adminurl=ep['admin_url'],
+                             internalurl=ep['internal_url'])
                 services.append(ep['service'])
         service_username = '_'.join(services)
 
@@ -371,6 +370,10 @@ def is_clustered():
             if 'clustered' in relation_data:
                 return True
     return False
+
+
+def is_leader():
+    pass
 
 
 def ha_relation_joined():

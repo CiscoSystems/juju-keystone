@@ -279,8 +279,8 @@ def create_service_entry(service_name, service_type, service_desc, endpoint=None
                                 description=service_desc)
     juju_log("Created new service entry '%s'" % service_name)
 
-def create_endpoint_template(region, service,  public_url, admin_url,
-                             internal_url, endpoint=None):
+def create_endpoint_template(region, service,  publicurl, adminurl,
+                             internalurl):
     """ Create a new endpoint template for service if one does not already
         exist matching name *and* region """
     import manager
@@ -292,13 +292,24 @@ def create_endpoint_template(region, service,  public_url, admin_url,
         if ep['service_id'] == service_id and ep['region'] == region:
             juju_log("Endpoint template already exists for '%s' in '%s'"
                       % (service, region))
-            return
+
+            up_to_date = True
+            for k in ['publicurl', 'adminurl', 'internalurl']:
+                if ep[k] != locals()[k]:
+                    up_to_date = False
+
+            if up_to_date:
+                return
+            else:
+                # delete endpoint and recreate if endpoint urls need updating.
+                juju_log("Updating endpoint template with new endpoint urls.")
+                manager.api.endpoints.delete(ep['id'])
 
     manager.api.endpoints.create(region=region,
                                  service_id=service_id,
-                                 publicurl=public_url,
-                                 adminurl=admin_url,
-                                 internalurl=internal_url)
+                                 publicurl=publicurl,
+                                 adminurl=adminurl,
+                                 internalurl=internalurl)
     juju_log("Created new endpoint template for '%s' in '%s'" %
                 (region, service))
 
@@ -443,7 +454,7 @@ def ensure_initial_admin(config):
     admin_url = "http://%s:%s/v2.0" % (config["hostname"], config["admin-port"])
     internal_url = "http://%s:%s/v2.0" % (config["hostname"], config["service-port"])
     create_endpoint_template("RegionOne", "keystone", public_url,
-                             admin_url, internal_url, endpoint=endpoint)
+                             admin_url, internal_url)
 
 def update_user_password(username, password, endpoint=None):
     import manager
