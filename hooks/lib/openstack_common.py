@@ -237,7 +237,7 @@ def configure_haproxy(units, service_ports):
         for unit, address in units.iteritems():
             conf = conf + SERVER_ENTRY.format(unit,
                                               address,
-                                              port)
+                                              port-1)
     with open(HAPROXY_CONF, 'w') as f:
         f.write(conf)
     with open(HAPROXY_DEFAULT, 'w') as f:

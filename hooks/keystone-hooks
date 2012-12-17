@@ -229,6 +229,13 @@ def identity_changed(relation_id=None, remote_unit=None):
         "service_password": service_password,
         "service_tenant": config['service-tenant']
     }
+    # Check if clustered and use vip + haproxy ports if so
+    if is_clustered():
+        relation_data["auth_host"] = config['vip']
+        relation_data["auth_port"] = SERVICE_PORTS['keystone_admin']
+        relation_data["service_host"] = config['vip']
+        relation_data["service_port"] = SERVICE_PORTS['keystone_service']
+
     relation_set(relation_data)
 
 def config_changed():
@@ -270,7 +277,27 @@ def cluster_changed():
 
 
 def ha_relation_changed():
-    pass
+    relation_data = relation_get_dict()
+    if 'clustered' in relation_data:
+        # Tell all related services to start using
+        # the VIP and haproxy ports instead
+        for r_id in relation_ids('identity-service'):
+            relation_set_2(rid=r_id,
+                           auth_host=config['vip'],
+                           service_host=config['vip'],
+                           service_port=SERVICE_PORTS['keystone_service'],
+                           auth_port=SERVICE_PORTS['keystone_admin'])
+
+
+def is_clustered():
+    for r_id in relation_ids('ha'):
+        for unit in relation_list(r_id):
+            relation_data = \
+                relation_get_dict(relation_id=r_id,
+                                  remote_unit=unit)
+            if 'clustered' in relation_data:
+                return True
+    return False
 
 
 def ha_relation_joined():
