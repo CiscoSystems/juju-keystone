@@ -191,3 +191,55 @@ def configure_installation_source(rel):
     else:
         error_out("Invalid openstack-release specified: %s" % rel)
 
+
+HAPROXY_CONF = '/etc/haproxy/haproxy.cfg'
+HAPROXY_DEFAULT = '/etc/default/haproxy'
+HAPROXY_CONTENT = """global
+    log 127.0.0.1 local0
+    log 127.0.0.1 local1 notice
+    maxconn 4096
+    user haproxy
+    group haproxy
+    spread-checks 0
+
+defaults
+    log global
+    mode http
+    option httplog
+    option dontlognull
+    retries 3
+    timeout queue 1000
+    timeout connect 1000
+    timeout client 1000
+    timeout server 1000
+
+listen stats :8888
+    mode http
+    stats enable
+    stats hide-version
+    stats realm Haproxy\ Statistics
+    stats uri /
+    stats auth admin:password
+"""
+SERVICE_FRAGMENT = """listen {0} 0.0.0.0:{1}
+    balance  roundrobin
+    option  tcplog
+"""
+SERVER_ENTRY = """    server {0} {1}:{2} check
+"""
+
+
+def configure_haproxy(units, service_ports):
+    conf = HAPROXY_CONTENT
+    for service, port in service_ports.iteritems():
+        conf = conf + SERVICE_FRAGMENT.format(service,
+                                              port)
+        for unit, address in units.iteritems():
+            conf = conf + SERVER_ENTRY.format(unit,
+                                              address,
+                                              port)
+    with open(HAPROXY_CONF, 'w') as f:
+        f.write(conf)
+    with open(HAPROXY_DEFAULT, 'w') as f:
+        f.write('ENABLED=1')
+

@@ -79,6 +79,20 @@ def relation_set(relation_data):
     for k in relation_data:
         execute("relation-set %s=%s" % (k, relation_data[k]), die=True)
 
+def relation_set_2(**kwargs):
+    cmd = [
+        'relation-set'
+        ]
+    args = []
+    for k, v in kwargs.items():
+        if k == 'rid':
+            cmd.append('-r')
+            cmd.append(v)
+        else:
+            args.append('{}={}'.format(k, v))
+    cmd += args
+    subprocess.check_call(cmd)
+
 def relation_get(relation_data):
     """ Obtain all current relation data
     relation_data is a list of options to query from the relation
