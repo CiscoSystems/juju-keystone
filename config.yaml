@@ -79,6 +79,14 @@ options:
   vip:
     type: string
     description: "Virtual IP to use to front keystone in ha configuration"
+  vip_iface:
+    type: string
+    default: eth0
+    description: "Network Interface where to place the Virtual IP"
+  vip_cidr:
+    type: int
+    default: 24
+    description: "Netmask that will be used for the Virtual IP"
   ha-bindiface:
     type: string
     default: eth0
