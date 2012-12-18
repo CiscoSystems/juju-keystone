@@ -242,7 +242,10 @@ def config_changed():
         do_openstack_upgrade(config['openstack-origin'], packages)
 
     set_admin_token(config['admin-token'])
+    update_config_block('logger_root', level=config['log-level'],
+                        file='/etc/keystone/logging.conf')
     ensure_initial_admin(config)
+    execute("service keystone restart", echo=True)
 
 hooks = {
     "install": install_hook,

@@ -26,6 +26,10 @@ options:
     default: "/etc/keystone/keystone.conf"
     type: string
     description: "Location of keystone configuration file"
+  log-level:
+    default: WARNING
+    type: string
+    description: Log level (WARNING, INFO, DEBUG, ERROR)
   service-port:
     default: 5000
     type: int

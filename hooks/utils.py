@@ -1,4 +1,5 @@
 #!/usr/bin/python
+import ConfigParser
 import subprocess
 import sys
 import json
@@ -149,106 +150,22 @@ def get_admin_token():
                           keystone_conf)
     error_out('Could not find admin_token line in %s' % keystone_conf)
 
-def update_config_block(block, **kwargs):
+def update_config_block(section, **kwargs):
     """ Updates keystone.conf blocks given kwargs.
-    Can be used to update driver settings for a particular backend,
-    setting the sql connection, etc.
-
-    Parses block heading as '[block]'
-
-    If block does not exist, a new block will be created at end of file with
-    given kwargs
+    Update a config setting in a specific setting of a config
+    file (/etc/keystone/keystone.conf, by default)
     """
-    f = open(keystone_conf, "r+")
-    orig = f.readlines()
-    new = []
-    found_block = ""
-    heading = "[%s]\n" % block
-
-    lines = len(orig)
-    ln = 0
-
-    def update_block(block):
-        for k, v in kwargs.iteritems():
-            for l in block:
-                if l.strip().split(" ")[0] == k:
-                    block[block.index(l)] = "%s = %s\n" % (k, v)
-                    return
-            block.append('%s = %s\n' % (k, v))
-            block.append('\n')
-
-    try:
-        found = False
-        while ln < lines:
-            if orig[ln] != heading:
-                new.append(orig[ln])
-                ln += 1
-            else:
-                new.append(orig[ln])
-                ln += 1
-                block = []
-                while orig[ln].strip() != '':
-                    block.append(orig[ln])
-                    ln += 1
-                update_block(block)
-                new += block
-                found = True
-
-        if not found:
-            if new[(len(new) - 1)].strip() != '':
-                new.append('\n')
-            new.append('%s' % heading)
-            for k, v in kwargs.iteritems():
-                new.append('%s = %s\n' % (k, v))
-            new.append('\n')
-    except:
-        error_out('Error while attempting to update config block. '\
-                  'Refusing to overwite existing config.')
-
-        return
-
-    # backup original config
-    backup = open(keystone_conf + '.juju-back', 'w+')
-    for l in orig:
-        backup.write(l)
-    backup.close()
-
-    # update config
-    f.seek(0)
-    f.truncate()
-    for l in new:
-        f.write(l)
-
-
-def keystone_conf_update(opt, val):
-    """ Updates keystone.conf values 
-    If option exists, it is reset to new value
-    If it does not, it added to the top of the config file after the [DEFAULT]
-    heading to keep it out of the paste deploy config
-    """
-    f = open(keystone_conf, "r+")
-    orig = f.readlines()
-    new = ""
-    found = False
-    for l in orig:
-        if l.split(' ')[0] == opt:
-            juju_log("Updating %s, setting %s = %s" % (keystone_conf, opt, val))
-            new += "%s = %s\n" % (opt, val)
-            found  = True
-        else:
-            new += l
-    new = new.split('\n')
-    # insert a new value at the top of the file, after the 'DEFAULT' header so
-    # as not to muck up paste deploy configuration later in the file 
-    if not found:
-        juju_log("Adding new config option %s = %s" % (opt, val))
-        header = new.index("[DEFAULT]")
-        new.insert((header+1), "%s = %s" % (opt, val))
-    f.seek(0)
-    f.truncate()
-    for l in new:
-        f.write("%s\n" % l)
-    f.close
+    if 'file' in kwargs:
+        conf_file = kwargs['file']
+        del kwargs['file']
+    else:
+        conf_file = keystone_conf
+    config = ConfigParser.RawConfigParser()
+    config.read(conf_file)
+    for k, v in kwargs.iteritems():
+        config.set(section, k, v)
+    with open(conf_file, 'wb') as out:
+        config.write(out)
 
 def create_service_entry(service_name, service_type, service_desc, owner=None):
     """ Add a new service entry to keystone if one does not already exist """
