@@ -11,6 +11,7 @@ keystone_conf = "/etc/keystone/keystone.conf"
 stored_passwd = "/var/lib/keystone/keystone.passwd"
 stored_token = "/var/lib/keystone/keystone.token"
 
+
 def execute(cmd, die=False, echo=False):
     """ Executes a command 
 
@@ -433,11 +434,28 @@ def ensure_initial_admin(config):
     create_service_entry("keystone", "identity", "Keystone Identity Service")
     # following documentation here, perhaps we should be using juju
     # public/private addresses for public/internal urls.
-    public_url = "http://%s:%s/v2.0" % (config["hostname"], config["service-port"])
-    admin_url = "http://%s:%s/v2.0" % (config["hostname"], config["admin-port"])
-    internal_url = "http://%s:%s/v2.0" % (config["hostname"], config["service-port"])
+    if is_clustered():
+        juju_log("Creating endpoint for clustered configuration")
+        create_keystone_endpoint(service_host=config["vip"],
+                                 service_port=int(config["service-port"]) + 1,
+                                 auth_host=config["vip"],
+                                 auth_port=int(config["admin-port"]) + 1)
+    else:
+        juju_log("Creating standard endpoint")
+        create_keystone_endpoint(service_host=config["hostname"],
+                                 service_port=config["service-port"],
+                                 auth_host=config["hostname"],
+                                 auth_port=config["admin-port"])
+
+
+def create_keystone_endpoint(service_host, service_port,
+                             auth_host, auth_port):
+    public_url = "http://%s:%s/v2.0" % (service_host, service_port)
+    admin_url = "http://%s:%s/v2.0" % (auth_host, auth_port)
+    internal_url = "http://%s:%s/v2.0" % (service_host, service_port)
     create_endpoint_template("RegionOne", "keystone", public_url,
                              admin_url, internal_url)
+
 
 def update_user_password(username, password):
     import manager
@@ -496,9 +514,34 @@ def do_openstack_upgrade(install_src, packages):
                                          relation_data["private-address"],
                                          config["database"]))
 
-    juju_log('Running database migrations for %s' % new_vers)
     execute('service keystone stop', echo=True)
-    execute('keystone-manage db_sync', echo=True, die=True)
+    if ((is_clustered() and is_leader()) or
+        not is_clustered()):
+        juju_log('Running database migrations for %s' % new_vers)
+        execute('keystone-manage db_sync', echo=True, die=True)
+    else:
+        juju_log('Not cluster leader; snoozing whilst leader upgrades DB')
+        time.sleep(10)
     execute('service keystone start', echo=True)
     time.sleep(5)
     juju_log('Completed Keystone upgrade: %s -> %s' % (old_vers, new_vers))
+
+
+def is_clustered():
+    for r_id in (relation_ids('ha') or []):
+        for unit in (relation_list(r_id) or []):
+            relation_data = \
+                relation_get_dict(relation_id=r_id,
+                                  remote_unit=unit)
+            if 'clustered' in relation_data:
+                return True
+    return False
+
+
+def is_leader():
+    status = execute('crm resource show res_ks_vip', echo=True)[0].strip()
+    hostname = execute('hostname', echo=True)[0].strip()
+    if hostname in status:
+        return True
+    else:
+        return False
