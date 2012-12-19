@@ -238,7 +238,8 @@ def config_changed():
     available = get_os_codename_install_source(config['openstack-origin'])
     installed = get_os_codename_package('keystone')
 
-    if available and get_os_version_codename(available) > get_os_version_codename(installed):
+    if (available and
+        get_os_version_codename(available) > get_os_version_codename(installed)):
         do_openstack_upgrade(config['openstack-origin'], packages)
 
     set_admin_token(config['admin-token'])
