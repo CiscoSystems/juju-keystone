@@ -22,6 +22,12 @@ openstack_codenames = {
     '2013.1': 'grizzly'
 }
 
+# The ugly duckling
+swift_codenames = {
+    '1.4.3': 'diablo',
+    '1.4.8': 'essex',
+    '1.7.4': 'folsom'
+}
 
 def juju_log(msg):
     subprocess.check_call(['juju-log', msg])
@@ -118,11 +124,31 @@ def get_os_codename_package(pkg):
 
     vers = vers[:6]
     try:
-        return openstack_codenames[vers]
+        if 'swift' in pkg:
+            vers = vers[:5]
+            return swift_codenames[vers]
+        else:
+            vers = vers[:6]
+            return openstack_codenames[vers]
     except KeyError:
         e = 'Could not determine OpenStack codename for version %s' % vers
         error_out(e)
 
+
+def get_os_version_package(pkg):
+    '''Derive OpenStack version number from an installed package.'''
+    codename = get_os_codename_package(pkg)
+
+    if 'swift' in pkg:
+        vers_map = swift_codenames
+    else:
+        vers_map = openstack_codenames
+
+    for version, cname in vers_map.iteritems():
+        if cname == codename:
+            return version
+    e = "Could not determine OpenStack version for package: %s" % pkg
+    error_out(e)
 
 def configure_installation_source(rel):
     '''Configure apt installation source.'''

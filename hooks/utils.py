@@ -162,6 +162,10 @@ def update_config_block(section, **kwargs):
         conf_file = keystone_conf
     config = ConfigParser.RawConfigParser()
     config.read(conf_file)
+
+    if section != 'DEFAULT' and not config.has_section(section):
+        config.add_section(section)
+
     for k, v in kwargs.iteritems():
         config.set(section, k, v)
     with open(conf_file, 'wb') as out:
@@ -343,6 +347,15 @@ def update_user_password(username, password):
 
     manager.api.users.update_password(user=user_id, password=password)
     juju_log("Successfully updated password for user '%s'" % username)
+
+
+def configure_pki_tokens(config):
+    '''Configure PKI token signing, if enabled.'''
+    if config['enable-pki'] not in ['True', 'true']:
+        update_config_block('signing', token_format='UUID')
+    else:
+        juju_log('TODO: PKI Support, setting to UUID for now.')
+        update_config_block('signing', token_format='UUID')
 
 
 def do_openstack_upgrade(install_src, packages):

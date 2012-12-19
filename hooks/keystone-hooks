@@ -245,6 +245,11 @@ def config_changed():
     update_config_block('logger_root', level=config['log-level'],
                         file='/etc/keystone/logging.conf')
     ensure_initial_admin(config)
+
+    if get_os_version_package('keystone') >= '2013.1':
+        # PKI introduced in Grizzly
+        configure_pki_tokens(config)
+
     execute("service keystone restart", echo=True)
 
 hooks = {

@@ -79,3 +79,9 @@ options:
     default: "keystone"
     type: string
     description: "Database username"
+
+  # PKI enablement and configuration (Grizzly and beyond)
+  enable-pki:
+    default: "false"
+    type: string
+    description: "Enable PKI token signing (Grizzly and beyond)"
