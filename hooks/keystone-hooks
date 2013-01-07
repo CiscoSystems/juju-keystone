@@ -8,7 +8,7 @@ from lib.openstack_common import *
 
 config = config_get()
 
-packages = "keystone python-mysqldb pwgen haproxy"
+packages = "keystone python-mysqldb pwgen haproxy python-jinja2"
 service = "keystone"
 
 # used to verify joined services are valid openstack components.
