@@ -190,11 +190,14 @@ def configure_installation_source(rel):
                 'version (%s)' % (ca_rel, ubuntu_rel)
             error_out(e)
 
-        if ca_rel == 'folsom/staging':
+        if 'staging' in ca_rel:
             # staging is just a regular PPA.
-            cmd = 'add-apt-repository -y ppa:ubuntu-cloud-archive/folsom-staging'
+            os_rel = ca_rel.split('/')[0]
+            ppa = 'ppa:ubuntu-cloud-archive/%s-staging' % os_rel
+            cmd = 'add-apt-repository -y %s' % ppa
             subprocess.check_call(cmd.split(' '))
             return
+
 
         # map charm config options to actual archive pockets.
         pockets = {
