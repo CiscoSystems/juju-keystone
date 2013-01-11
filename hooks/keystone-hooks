@@ -40,7 +40,7 @@ valid_services = {
         "desc": "S3 Compatible object-store"
     },
     "swift": {
-        "type": "storage",
+        "type": "object-store",
         "desc": "Swift Object Storage Service"
     },
     "quantum": {
@@ -212,6 +212,14 @@ def identity_changed(relation_id=None, remote_unit=None):
 
     create_user(service_username, service_password, config['service-tenant'])
     grant_role(service_username, config['admin-role'], config['service-tenant'])
+
+    # Allow the remote service to request creation of any additional roles.
+    # Currently used by Swift.
+    if 'requested_roles' in settings:
+        roles = settings['requested_roles'].split(',')
+        juju_log("Creating requested roles: %s" % roles)
+        for role in roles:
+            create_role(role, user=config['admin-user'], tenant='admin')
 
     # As of https://review.openstack.org/#change,4675, all nodes hosting
     # an endpoint(s) needs a service username and password assigned to

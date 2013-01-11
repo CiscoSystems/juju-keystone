@@ -234,11 +234,11 @@ def create_user(name, password, tenant):
                                  password=password,
                                  email='juju@localhost',
                                  tenant_id=tenant_id)
-        juju_log("Created new user '%s' pw: %s tenant: %s" % (name, password, tenant_id))
+        juju_log("Created new user '%s' tenant: %s" % (name, tenant_id))
         return
     juju_log("A user named '%s' already exists" % name)
 
-def create_role(name, user, tenant):
+def create_role(name, user=None, tenant=None):
     """ creates a role if it doesn't already exist. grants role to user """
     import manager
     manager = manager.KeystoneManager(endpoint='http://localhost:35357/v2.0/',
@@ -249,6 +249,9 @@ def create_role(name, user, tenant):
         juju_log("Created new role '%s'" % name)
     else:
         juju_log("A role named '%s' already exists" % name)
+
+    if not user and not tenant:
+        return
 
     # NOTE(adam_g): Keystone client requires id's for add_user_role, not names
     user_id = manager.resolve_user_id(user)
