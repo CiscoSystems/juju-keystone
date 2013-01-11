@@ -198,12 +198,14 @@ def configure_installation_source(rel):
             subprocess.check_call(cmd.split(' '))
             return
 
-
         # map charm config options to actual archive pockets.
         pockets = {
             'folsom': 'precise-updates/folsom',
             'folsom/updates': 'precise-updates/folsom',
-            'folsom/proposed': 'precise-proposed/folsom'
+            'folsom/proposed': 'precise-proposed/folsom',
+            'grizzly': 'precise-updates/grizzly',
+            'grizzly/updates': 'precise-updates/grizzly',
+            'grizzly/proposed': 'precise-proposed/grizzly'
         }
 
         try:
@@ -219,4 +221,3 @@ def configure_installation_source(rel):
             f.write(src)
     else:
         error_out("Invalid openstack-release specified: %s" % rel)
-
