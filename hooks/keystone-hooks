@@ -40,7 +40,7 @@ valid_services = {
         "desc": "S3 Compatible object-store"
     },
     "swift": {
-        "type": "storage",
+        "type": "object-store",
         "desc": "Swift Object Storage Service"
     },
     "quantum": {
@@ -139,6 +139,14 @@ def identity_changed(relation_id=None, remote_unit=None):
 
     settings = relation_get_dict(relation_id=relation_id,
                                  remote_unit=remote_unit)
+
+    # Allow the remote service to request creation of any additional roles.
+    # Currently used by Swift.
+    if 'requested_roles' in settings and settings['requested_roles'] != 'None':
+        roles = settings['requested_roles'].split(',')
+        juju_log("Creating requested roles: %s" % roles)
+        for role in roles:
+            create_role(role, user=config['admin-user'], tenant='admin')
 
     # the minimum settings needed per endpoint
     single = set(['service', 'region', 'public_url', 'admin_url',
@@ -250,7 +258,8 @@ def config_changed():
     available = get_os_codename_install_source(config['openstack-origin'])
     installed = get_os_codename_package('keystone')
 
-    if get_os_version_codename(available) > get_os_version_codename(installed):
+    if (available and
+        get_os_version_codename(available) > get_os_version_codename(installed)):
         do_openstack_upgrade(config['openstack-origin'], packages)
 
     set_admin_token(config['admin-token'])
@@ -261,6 +270,13 @@ def config_changed():
     elif not is_clustered():
         ensure_initial_admin(config)
 
+    update_config_block('logger_root', level=config['log-level'],
+                        file='/etc/keystone/logging.conf')
+    if get_os_version_package('keystone') >= '2013.1':
+        # PKI introduced in Grizzly
+        configure_pki_tokens(config)
+
+    execute("service keystone restart", echo=True)
     cluster_changed()
 
 
