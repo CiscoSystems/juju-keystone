@@ -26,6 +26,10 @@ options:
     default: "/etc/keystone/keystone.conf"
     type: string
     description: "Location of keystone configuration file"
+  log-level:
+    default: WARNING
+    type: string
+    description: Log level (WARNING, INFO, DEBUG, ERROR)
   service-port:
     default: 5000
     type: int
@@ -95,7 +99,12 @@ options:
       with the other members of the HA Cluster.
   ha-mcastport:
     type: int
-    default: 5406
+    default: 5403
     description: |
       Default multicast port number that will be used to communicate between
       HA Cluster nodes.
+  # PKI enablement and configuration (Grizzly and beyond)
+  enable-pki:
+    default: "false"
+    type: string
+    description: "Enable PKI token signing (Grizzly and beyond)"
