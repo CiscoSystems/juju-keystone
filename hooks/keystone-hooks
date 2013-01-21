@@ -46,6 +46,10 @@ valid_services = {
     "quantum": {
         "type": "network",
         "desc": "Quantum Networking Service"
+    },
+    "oxygen": {
+        "type": "oxygen",
+        "desc": "Oxygen Cloud Image Service"
     }
 }
 
