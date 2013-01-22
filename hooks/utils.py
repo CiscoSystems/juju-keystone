@@ -360,24 +360,28 @@ def ensure_initial_admin(config):
     # public/private addresses for public/internal urls.
     if is_clustered():
         juju_log("Creating endpoint for clustered configuration")
-        create_keystone_endpoint(service_host=config["vip"],
-                                 service_port=int(config["service-port"]) + 1,
-                                 auth_host=config["vip"],
-                                 auth_port=int(config["admin-port"]) + 1)
+        for region in config['region'].split():
+            create_keystone_endpoint(service_host=config["vip"],
+                                     service_port=int(config["service-port"]) + 1,
+                                     auth_host=config["vip"],
+                                     auth_port=int(config["admin-port"]) + 1,
+                                     region=region)
     else:
         juju_log("Creating standard endpoint")
-        create_keystone_endpoint(service_host=config["hostname"],
-                                 service_port=config["service-port"],
-                                 auth_host=config["hostname"],
-                                 auth_port=config["admin-port"])
+        for region in config['region'].split():
+            create_keystone_endpoint(service_host=config["hostname"],
+                                     service_port=config["service-port"],
+                                     auth_host=config["hostname"],
+                                     auth_port=config["admin-port"],
+                                     region=region)
 
 
 def create_keystone_endpoint(service_host, service_port,
-                             auth_host, auth_port):
+                             auth_host, auth_port, region):
     public_url = "http://%s:%s/v2.0" % (service_host, service_port)
     admin_url = "http://%s:%s/v2.0" % (auth_host, auth_port)
     internal_url = "http://%s:%s/v2.0" % (service_host, service_port)
-    create_endpoint_template("RegionOne", "keystone", public_url,
+    create_endpoint_template(region, "keystone", public_url,
                              admin_url, internal_url)
 
 

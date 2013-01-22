@@ -79,6 +79,10 @@ options:
     default: "keystone"
     type: string
     description: "Database username"
+  region:
+    default: RegionOne
+    type: string
+    description: "OpenStack Region(s) - separate multiple regions with single space"
   # HA configuration settings
   vip:
     type: string
