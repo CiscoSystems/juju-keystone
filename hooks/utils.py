@@ -540,8 +540,9 @@ def eligible_leader():
 
 def synchronize_service_credentials():
     '''
-    broadcast service credentials to peers or consume those that have been
-    broadcasted by peer, depending on hook context.'''
+    Broadcast service credentials to peers or consume those that have been
+    broadcasted by peer, depending on hook context.
+    '''
     if os.path.basename(sys.argv[0]) == 'cluster-relation-changed':
         r_data = relation_get_dict()
         if 'service_credentials' in r_data:

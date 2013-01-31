@@ -299,7 +299,6 @@ SERVICE_PORTS = {
 def cluster_changed():
     cluster_hosts = {}
     cluster_hosts['self'] = config['hostname']
-    creds = None
     for r_id in relation_ids('cluster'):
         for unit in relation_list(r_id):
             cluster_hosts[unit.replace('/','-')] = \
