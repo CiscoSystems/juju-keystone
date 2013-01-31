@@ -11,10 +11,10 @@ from lib.openstack_common import *
 keystone_conf = "/etc/keystone/keystone.conf"
 stored_passwd = "/var/lib/keystone/keystone.passwd"
 stored_token = "/var/lib/keystone/keystone.token"
-
+SERVICE_PASSWD_PATH = '/var/lib/keystone/services.passwd'
 
 def execute(cmd, die=False, echo=False):
-    """ Executes a command 
+    """ Executes a command
 
     if die=True, script will exit(1) if command does not return 0
     if echo=True, output of command will be printed to stdout
@@ -398,6 +398,31 @@ def update_user_password(username, password):
     manager.api.users.update_password(user=user_id, password=password)
     juju_log("Successfully updated password for user '%s'" % username)
 
+def load_stored_passwords(path=SERVICE_PASSWD_PATH):
+    creds = {}
+    if not os.path.isfile(path):
+        return creds
+
+    stored_passwd = open(path, 'r')
+    for l in stored_passwd.readlines():
+        user, passwd = l.strip().split(':')
+        creds[user] = passwd
+    return creds
+
+def save_stored_passwords(path=SERVICE_PASSWD_PATH, **creds):
+    with open(path, 'wb') as stored_passwd:
+        [stored_passwd.write('%s:%s\n' % (u, p)) for u, p in creds.iteritems()]
+
+def get_service_password(service_username):
+    creds = load_stored_passwords()
+    if service_username in creds:
+        return creds[service_username]
+
+    passwd = subprocess.check_output(['pwgen', '-c', '32', '1']).strip()
+    creds[service_username] = passwd
+    save_stored_passwords(**creds)
+
+    return passwd
 
 def configure_pki_tokens(config):
     '''Configure PKI token signing, if enabled.'''
@@ -482,3 +507,50 @@ def is_leader():
         return True
     else:
         return False
+
+
+def peer_units():
+    peers = []
+    for r_id in (relation_ids('cluster') or []):
+        for unit in (relation_list(r_id) or []):
+            peers.append(unit)
+    return peers
+
+def oldest_peer(peers):
+    local_unit_no = os.getenv('JUJU_UNIT_NAME').split('/')[1]
+    for peer in peers:
+        remote_unit_no = peer.split('/')[1]
+        if remote_unit_no < local_unit_no:
+            return False
+    return True
+
+
+def eligible_leader():
+    if is_clustered() and not is_leader():
+            return False
+    else:
+        peers = peer_units()
+        if peers and not oldest_peer(peers):
+            juju_log('Deferring action to oldest service unit.')
+            return False
+    return True
+
+
+def synchronize_service_credentials():
+    '''
+    broadcast service credentials to peers or consume those that have been
+    broadcasted by peer, depending on hook context.'''
+    if os.path.basename(sys.argv[0]) == 'cluster-relation-changed':
+        r_data = relation_get_dict()
+        if 'service_credentials' in r_data:
+            juju_log('Saving service passwords from peer.')
+            save_stored_passwords(**json.loads(r_data['service_credentials']))
+        return
+
+    creds = load_stored_passwords()
+    if not creds:
+        return
+    juju_log('Synchronizing service passwords to all peers.')
+    creds = json.dumps(creds)
+    for r_id in (relation_ids('cluster') or []):
+        relation_set_2(rid=r_id, service_credentials=creds)
