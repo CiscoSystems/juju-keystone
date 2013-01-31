@@ -526,7 +526,9 @@ def oldest_peer(peers):
 
 
 def eligible_leader():
-    if is_clustered() and not is_leader():
+    if is_clustered():
+        if not is_leader():
+            juju_log('Deferring action to CRM leader.')
             return False
     else:
         peers = peer_units()
