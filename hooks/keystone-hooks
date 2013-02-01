@@ -50,6 +50,10 @@ valid_services = {
     "oxygen": {
         "type": "oxygen",
         "desc": "Oxygen Cloud Image Service"
+    },
+    "ceilometer": {
+        "type": "metering",
+        "desc": "Ceilometer Metering Service"
     }
 }
 
