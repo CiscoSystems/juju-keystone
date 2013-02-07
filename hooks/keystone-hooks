@@ -77,11 +77,13 @@ def install_hook():
                         driver='keystone.token.backends.sql.Token')
     update_config_block('ec2',
                         driver='keystone.contrib.ec2.backends.sql.Ec2')
+
     execute("service keystone stop", echo=True)
     execute("keystone-manage db_sync")
     execute("service keystone start", echo=True)
     time.sleep(5)
     ensure_initial_admin(config)
+
 
 def db_joined():
     relation_data = { "database": config["database"],
@@ -100,7 +102,14 @@ def db_changed():
                              relation_data["password"],
                              relation_data["private-address"],
                              config["database"]))
+
     execute("service keystone stop", echo=True)
+
+    if not eligible_leader():
+        juju_log('Deferring DB initialization to service leader.')
+        execute("service keystone start")
+        return
+
     execute("keystone-manage db_sync", echo=True)
     execute("service keystone start")
     time.sleep(5)
@@ -141,8 +150,8 @@ def identity_changed(relation_id=None, remote_unit=None):
                                  adminurl=adminurl,
                                  internalurl=internalurl)
 
-    if is_clustered() and not is_leader():
-        # Only respond if service unit is the leader
+    if not eligible_leader():
+        juju_log('Deferring identity_changed() to service leader.')
         return
 
     settings = relation_get_dict(relation_id=relation_id,
@@ -221,16 +230,7 @@ def identity_changed(relation_id=None, remote_unit=None):
     token = get_admin_token()
     juju_log("Creating service credentials for '%s'" % service_username)
 
-    # TODO: This needs to be changed as it won't work with ha keystone
-    stored_passwd = '/var/lib/keystone/%s.passwd' % service_username
-    if os.path.isfile(stored_passwd):
-        juju_log("Loading stored service passwd from %s" % stored_passwd)
-        service_password = open(stored_passwd, 'r').readline().strip('\n')
-    else:
-        juju_log("Generating a new service password for %s" % service_username)
-        service_password = execute('pwgen -c 32 1', die=True)[0].strip()
-        open(stored_passwd, 'w+').writelines("%s\n" % service_password)
-
+    service_password = get_service_password(service_username)
     create_user(service_username, service_password, config['service-tenant'])
     grant_role(service_username, config['admin-role'], config['service-tenant'])
 
@@ -258,6 +258,7 @@ def identity_changed(relation_id=None, remote_unit=None):
         relation_data["service_port"] = SERVICE_PORTS['keystone_service']
 
     relation_set(relation_data)
+    synchronize_service_credentials()
 
 def config_changed():
 
@@ -272,10 +273,8 @@ def config_changed():
 
     set_admin_token(config['admin-token'])
 
-    if is_clustered() and is_leader():
+    if eligible_leader():
         juju_log('Cluster leader - ensuring endpoint configuration is up to date')
-        ensure_initial_admin(config)
-    elif not is_clustered():
         ensure_initial_admin(config)
 
     update_config_block('logger_root', level=config['log-level'],
@@ -290,10 +289,8 @@ def config_changed():
 
 def upgrade_charm():
     cluster_changed()
-    if is_clustered() and is_leader():
+    if eligible_leader():
         juju_log('Cluster leader - ensuring endpoint configuration is up to date')
-        ensure_initial_admin(config)
-    elif not is_clustered():
         ensure_initial_admin(config)
 
 
@@ -313,6 +310,8 @@ def cluster_changed():
                                   remote_unit=unit)['private-address']
     configure_haproxy(cluster_hosts,
                       SERVICE_PORTS)
+
+    synchronize_service_credentials()
 
 
 def ha_relation_changed():
@@ -391,7 +390,7 @@ hooks = {
 
 # keystone-hooks gets called by symlink corresponding to the requested relation
 # hook.
-arg0 = sys.argv[0].split("/").pop()
-if arg0 not in hooks.keys():
-    error_out("Unsupported hook: %s" % arg0)
-hooks[arg0]()
+hook = os.path.basename(sys.argv[0])
+if hook not in hooks.keys():
+    error_out("Unsupported hook: %s" % hook)
+hooks[hook]()
