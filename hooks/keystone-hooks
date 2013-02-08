@@ -1,14 +1,18 @@
 #!/usr/bin/python
 
+
 import sys
 import time
+
+from base64 import b64encode
+from urlparse import urlparse
 
 from utils import *
 from lib.openstack_common import *
 
 config = config_get()
 
-packages = "keystone python-mysqldb pwgen"
+packages = "keystone python-mysqldb pwgen openssl python-openssl"
 service = "keystone"
 
 # used to verify joined services are valid openstack components.
@@ -72,6 +76,8 @@ def install_hook():
     execute("service keystone stop", echo=True)
     execute("keystone-manage db_sync")
     execute("service keystone start", echo=True)
+
+
     time.sleep(5)
     ensure_initial_admin(config)
 
@@ -108,6 +114,29 @@ def db_changed():
                      (id, unit))
             identity_changed(relation_id=id, remote_unit=unit)
 
+def ensure_valid_service(service):
+    if service not in valid_services.keys():
+        juju_log("WARN: Invalid service requested: '%s'" % service)
+        realtion_set({ "admin_token": -1 })
+        return
+
+def add_endpoint(region, service, public_url, admin_url, internal_url):
+    desc = valid_services[service]["desc"]
+    service_type = valid_services[service]["type"]
+    create_service_entry(service, service_type, desc)
+    create_endpoint_template(region=region, service=service,
+                             public_url=public_url,
+                             admin_url=admin_url,
+                             internal_url=internal_url)
+
+def maybe_https(url):
+    if config['https-service-endpoints'] in ['True', 'true']:
+        parsed = urlparse(url)
+        if parsed.scheme == 'http':
+            url = 'https://%s%s' % (parsed.netloc,
+                                    parsed.path)
+    return url
+
 def identity_joined():
     """ Do nothing until we get information about requested service """
     pass
@@ -118,21 +147,6 @@ def identity_changed(relation_id=None, remote_unit=None):
         Optionally allow this hook to be re-fired for an existing
         relation+unit, for context see see db_changed().
     """
-    def ensure_valid_service(service):
-        if service not in valid_services.keys():
-            juju_log("WARN: Invalid service requested: '%s'" % service)
-            realtion_set({ "admin_token": -1 })
-            return
-
-    def add_endpoint(region, service, public_url, admin_url, internal_url):
-        desc = valid_services[service]["desc"]
-        service_type = valid_services[service]["type"]
-        create_service_entry(service, service_type, desc)
-        create_endpoint_template(region=region, service=service,
-                                 public_url=public_url,
-                                 admin_url=admin_url,
-                                 internal_url=internal_url)
-
     settings = relation_get_dict(relation_id=relation_id,
                                  remote_unit=remote_unit)
 
@@ -141,13 +155,13 @@ def identity_changed(relation_id=None, remote_unit=None):
                   'internal_url'])
     if single.issubset(settings):
         # other end of relation advertised only one endpoint
-
         if 'None' in [v for k,v in settings.iteritems()]:
             # Some backend services advertise no endpoint but require a
             # hook execution to update auth strategy.
             return
 
         ensure_valid_service(settings['service'])
+
         add_endpoint(region=settings['region'], service=settings['service'],
                      public_url=settings['public_url'],
                      admin_url=settings['admin_url'],
@@ -237,6 +251,16 @@ def identity_changed(relation_id=None, remote_unit=None):
         "service_password": service_password,
         "service_tenant": config['service-tenant']
     }
+
+    if config['https-service-endpoints'] in ['True', 'true']:
+        ca = get_ca()
+        service = os.getenv('JUJU_REMOTE_UNIT').split('/')[0]
+        cert, key = ca.get_cert_and_key(common_name=service)
+        ca_bundle= ca.get_ca_bundle()
+        relation_data['ssl_cert'] = b64encode(cert)
+        relation_data['ssl_key'] = b64encode(key)
+        relation_data['ca_cert'] = b64encode(ca_bundle)
+
     relation_set(relation_data)
 
 def config_changed():

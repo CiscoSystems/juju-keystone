@@ -75,3 +75,13 @@ options:
     default: "keystone"
     type: string
     description: "Database username"
+  https-service-endpoints:
+    default: "False"
+    type: string
+    description: "Manage SSL certificates for all service endpoints."
+  ssl-ca:
+    default: "None"
+    type: string
+    description: |
+        CA to use when issueing certificates to OpenStack services.  If unset,
+        a CA certificate will be automatically generated.

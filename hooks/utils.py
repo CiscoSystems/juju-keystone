@@ -7,12 +7,17 @@ import time
 
 from lib.openstack_common import *
 
+import ssl
+
 keystone_conf = "/etc/keystone/keystone.conf"
 stored_passwd = "/var/lib/keystone/keystone.passwd"
 stored_token = "/var/lib/keystone/keystone.token"
 
+SSL_DIR = '/var/lib/keystone/juju_ssl/'
+SSL_CA_NAME = 'Ubuntu Cloud'
+
 def execute(cmd, die=False, echo=False):
-    """ Executes a command 
+    """ Executes a command
 
     if die=True, script will exit(1) if command does not return 0
     if echo=True, output of command will be printed to stdout
@@ -414,8 +419,11 @@ def ensure_initial_admin(config):
     public_url = "http://%s:%s/v2.0" % (config["hostname"], config["service-port"])
     admin_url = "http://%s:%s/v2.0" % (config["hostname"], config["admin-port"])
     internal_url = "http://%s:%s/v2.0" % (config["hostname"], config["service-port"])
-    create_endpoint_template("RegionOne", "keystone", public_url,
-                             admin_url, internal_url)
+    create_endpoint_template("RegionOne", "keystone",
+                             public_url,
+                             admin_url,
+                             internal_url)
+
 
 def update_user_password(username, password):
     import manager
@@ -480,3 +488,17 @@ def do_openstack_upgrade(install_src, packages):
     execute('service keystone start', echo=True)
     time.sleep(5)
     juju_log('Completed Keystone upgrade: %s -> %s' % (old_vers, new_vers))
+
+CA = []
+def get_ca(name='Ubuntu Cloud'):
+    if not CA:
+        if not os.path.isdir(SSL_DIR):
+            os.mkdir(SSL_DIR)
+        d_name = '_'.join(name.lower().split(' '))
+        ca = ssl.JujuCA(name=name,
+                        ca_dir=os.path.join(SSL_DIR,
+                                            '%s_intermediate_ca' % d_name),
+                        root_ca_dir=os.path.join(SSL_DIR,
+                                            '%s_root_ca' % d_name))
+        CA.append(ca)
+    return CA[0]
