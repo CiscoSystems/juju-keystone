@@ -4,14 +4,24 @@ import subprocess
 import sys
 import json
 import os
+import tarfile
+import tempfile
 import time
 
 from lib.openstack_common import *
+
+import keystone_ssl as ssl
+import keystone_ssh as unison
 
 keystone_conf = "/etc/keystone/keystone.conf"
 stored_passwd = "/var/lib/keystone/keystone.passwd"
 stored_token = "/var/lib/keystone/keystone.token"
 SERVICE_PASSWD_PATH = '/var/lib/keystone/services.passwd'
+
+SSL_DIR = '/var/lib/keystone/juju_ssl/'
+SSL_CA_NAME = 'Ubuntu Cloud'
+
+SSH_USER='juju_keystone'
 
 def execute(cmd, die=False, echo=False):
     """ Executes a command
@@ -94,6 +104,19 @@ def relation_set_2(**kwargs):
             args.append('{}={}'.format(k, v))
     cmd += args
     subprocess.check_call(cmd)
+
+
+def unit_get(attribute):
+    cmd = [
+        'unit-get',
+        attribute
+        ]
+    value = subprocess.check_output(cmd).strip()  # IGNORE:E1103
+    if value == "":
+        return None
+    else:
+        return value
+
 
 def relation_get(relation_data):
     """ Obtain all current relation data
@@ -356,8 +379,7 @@ def ensure_initial_admin(config):
     create_role("KeystoneAdmin", config["admin-user"], 'admin')
     create_role("KeystoneServiceAdmin", config["admin-user"], 'admin')
     create_service_entry("keystone", "identity", "Keystone Identity Service")
-    # following documentation here, perhaps we should be using juju
-    # public/private addresses for public/internal urls.
+
     if is_clustered():
         juju_log("Creating endpoint for clustered configuration")
         for region in config['region'].split():
@@ -543,17 +565,32 @@ def synchronize_service_credentials():
     Broadcast service credentials to peers or consume those that have been
     broadcasted by peer, depending on hook context.
     '''
-    if os.path.basename(sys.argv[0]) == 'cluster-relation-changed':
-        r_data = relation_get_dict()
-        if 'service_credentials' in r_data:
-            juju_log('Saving service passwords from peer.')
-            save_stored_passwords(**json.loads(r_data['service_credentials']))
-        return
-
-    creds = load_stored_passwords()
-    if not creds:
+    if (not eligible_leader() or
+        not os.path.isfile(SERVICE_PASSWD_PATH)):
         return
     juju_log('Synchronizing service passwords to all peers.')
-    creds = json.dumps(creds)
-    for r_id in (relation_ids('cluster') or []):
-        relation_set_2(rid=r_id, service_credentials=creds)
+    unison.sync_to_peers(peer_interface='cluster',
+                         paths=[SERVICE_PASSWD_PATH], user=SSH_USER,
+                         verbose=True)
+
+CA = []
+def get_ca(user='keystone', group='keystone'):
+    """
+    Initialize a new CA object if one hasn't already been loaded.
+    This will create a new CA or load an existing one.
+    """
+    if not CA:
+        if not os.path.isdir(SSL_DIR):
+            os.mkdir(SSL_DIR)
+        d_name = '_'.join(SSL_CA_NAME.lower().split(' '))
+        ca = ssl.JujuCA(name=SSL_CA_NAME,
+                        ca_dir=os.path.join(SSL_DIR,
+                                            '%s_intermediate_ca' % d_name),
+                        root_ca_dir=os.path.join(SSL_DIR,
+                                            '%s_root_ca' % d_name))
+        # SSL_DIR is synchronized via all peers over unison+ssh, need
+        # to ensure permissions.
+        execute('chown -R %s.%s %s' % (user, group, SSL_DIR))
+        execute('chmod -R g+rwx %s' % SSL_DIR)
+        CA.append(ca)
+    return CA[0]

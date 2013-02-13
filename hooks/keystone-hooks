@@ -3,12 +3,16 @@
 import sys
 import time
 
+from base64 import b64encode
+
 from utils import *
+
 from lib.openstack_common import *
+import lib.unison as unison
 
 config = config_get()
 
-packages = "keystone python-mysqldb pwgen haproxy python-jinja2"
+packages = "keystone python-mysqldb pwgen haproxy python-jinja2 openssl unison"
 service = "keystone"
 
 # used to verify joined services are valid openstack components.
@@ -81,6 +85,11 @@ def install_hook():
     execute("service keystone stop", echo=True)
     execute("keystone-manage db_sync")
     execute("service keystone start", echo=True)
+
+    # ensure /var/lib/keystone is g+wrx for peer relations that
+    # may be syncing data there via SSH_USER.
+    execute("chmod -R g+wrx /var/lib/keystone/")
+
     time.sleep(5)
     ensure_initial_admin(config)
 
@@ -97,6 +106,7 @@ def db_changed():
         'private-address' not in relation_data):
         juju_log("private-address or password not set. Peer not ready, exit 0")
         exit(0)
+
     update_config_block('sql', connection="mysql://%s:%s@%s/%s" %
                             (config["database-user"],
                              relation_data["password"],
@@ -124,6 +134,21 @@ def db_changed():
             juju_log("Re-exec'ing identity-service-changed for: %s - %s" %
                      (id, unit))
             identity_changed(relation_id=id, remote_unit=unit)
+
+def ensure_valid_service(service):
+    if service not in valid_services.keys():
+        juju_log("WARN: Invalid service requested: '%s'" % service)
+        realtion_set({ "admin_token": -1 })
+        return
+
+def add_endpoint(region, service, public_url, admin_url, internal_url):
+    desc = valid_services[service]["desc"]
+    service_type = valid_services[service]["type"]
+    create_service_entry(service, service_type, desc)
+    create_endpoint_template(region=region, service=service,
+                             public_url=public_url,
+                             admin_url=admin_url,
+                             internal_url=internal_url)
 
 def identity_joined():
     """ Do nothing until we get information about requested service """
@@ -170,13 +195,13 @@ def identity_changed(relation_id=None, remote_unit=None):
                   'internal_url'])
     if single.issubset(settings):
         # other end of relation advertised only one endpoint
-
         if 'None' in [v for k,v in settings.iteritems()]:
             # Some backend services advertise no endpoint but require a
             # hook execution to update auth strategy.
             return
 
         ensure_valid_service(settings['service'])
+
         add_endpoint(region=settings['region'], service=settings['service'],
                      publicurl=settings['public_url'],
                      adminurl=settings['admin_url'],
@@ -250,6 +275,7 @@ def identity_changed(relation_id=None, remote_unit=None):
         "service_password": service_password,
         "service_tenant": config['service-tenant']
     }
+
     # Check if clustered and use vip + haproxy ports if so
     if is_clustered():
         relation_data["auth_host"] = config['vip']
@@ -257,6 +283,17 @@ def identity_changed(relation_id=None, remote_unit=None):
         relation_data["service_host"] = config['vip']
         relation_data["service_port"] = SERVICE_PORTS['keystone_service']
 
+    # generate or get a new cert/key for service if set to manage certs.
+    if config['https-service-endpoints'] in ['True', 'true']:
+        ca = get_ca()
+        service = os.getenv('JUJU_REMOTE_UNIT').split('/')[0]
+        cert, key = ca.get_cert_and_key(common_name=settings['private-address'])
+        ca_bundle= ca.get_ca_bundle()
+        relation_data['ssl_cert'] = b64encode(cert)
+        relation_data['ssl_key'] = b64encode(key)
+        relation_data['ca_cert'] = b64encode(ca_bundle)
+        unison.sync_to_peers(peer_interface='cluster',
+                             paths=[SSL_DIR], user=SSH_USER, verbose=True)
     relation_set(relation_data)
     synchronize_service_credentials()
 
@@ -299,8 +336,17 @@ SERVICE_PORTS = {
     "keystone_service": int(config['service-port']) + 1
     }
 
+def cluster_joined():
+    unison.ssh_authorized_peers(user=SSH_USER,
+                                group='keystone',
+                                peer_interface='cluster',
+                                ensure_user=True)
 
 def cluster_changed():
+    unison.ssh_authorized_peers(user=SSH_USER,
+                                   group='keystone',
+                                   peer_interface='cluster',
+                                   ensure_user=True)
     cluster_hosts = {}
     cluster_hosts['self'] = config['hostname']
     for r_id in relation_ids('cluster'):
@@ -381,6 +427,7 @@ hooks = {
     "identity-service-relation-joined": identity_joined,
     "identity-service-relation-changed": identity_changed,
     "config-changed": config_changed,
+    "cluster-relation-joined": cluster_joined,
     "cluster-relation-changed": cluster_changed,
     "cluster-relation-departed": cluster_changed,
     "ha-relation-joined": ha_relation_joined,
