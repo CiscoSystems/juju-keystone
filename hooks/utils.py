@@ -11,7 +11,7 @@ import time
 from lib.openstack_common import *
 
 import keystone_ssl as ssl
-import keystone_ssh as unison
+import lib.unison as unison
 
 keystone_conf = "/etc/keystone/keystone.conf"
 stored_passwd = "/var/lib/keystone/keystone.passwd"
