@@ -174,7 +174,21 @@ def identity_changed(relation_id=None, remote_unit=None):
         if 'None' in [v for k,v in settings.iteritems()]:
             # Some backend services advertise no endpoint but require a
             # hook execution to update auth strategy.
+            relation_data = {}
+            # Check if clustered and use vip + haproxy ports if so
+            if is_clustered():
+                relation_data["auth_host"] = config['vip']
+                relation_data["auth_port"] = SERVICE_PORTS['keystone_admin']
+                relation_data["service_host"] = config['vip']
+                relation_data["service_port"] = SERVICE_PORTS['keystone_service']
+            else:
+                relation_data["auth_host"] = config['hostname']
+                relation_data["auth_port"] = config['auth-port']
+                relation_data["service_host"] = config['hostname']
+                relation_data["service_port"] = config['service-port']
+            relation_set(relation_data)
             return
+
 
         ensure_valid_service(settings['service'])
         add_endpoint(region=settings['region'], service=settings['service'],
