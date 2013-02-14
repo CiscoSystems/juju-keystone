@@ -2,6 +2,7 @@
 
 import sys
 import time
+import urlparse
 
 from base64 import b64encode
 
@@ -273,8 +274,15 @@ def identity_changed(relation_id=None, remote_unit=None):
         "auth_port": config["admin-port"],
         "service_username": service_username,
         "service_password": service_password,
-        "service_tenant": config['service-tenant']
+        "service_tenant": config['service-tenant'],
+        "https_keystone": "False",
+        "ssl_cert": "",
+        "ssl_key": "",
+        "ca_cert": ""
     }
+
+    if relation_id:
+        relation_data['rid'] = relation_id
 
     # Check if clustered and use vip + haproxy ports if so
     if is_clustered():
@@ -285,16 +293,18 @@ def identity_changed(relation_id=None, remote_unit=None):
 
     # generate or get a new cert/key for service if set to manage certs.
     if config['https-service-endpoints'] in ['True', 'true']:
+        url = urlparse.urlparse(settings['internal_url'])
         ca = get_ca()
         service = os.getenv('JUJU_REMOTE_UNIT').split('/')[0]
-        cert, key = ca.get_cert_and_key(common_name=settings['private-address'])
+        cert, key = ca.get_cert_and_key(common_name=url.hostname)
         ca_bundle= ca.get_ca_bundle()
         relation_data['ssl_cert'] = b64encode(cert)
         relation_data['ssl_key'] = b64encode(key)
         relation_data['ca_cert'] = b64encode(ca_bundle)
+        relation_data['https_keystone'] = 'True'
         unison.sync_to_peers(peer_interface='cluster',
                              paths=[SSL_DIR], user=SSH_USER, verbose=True)
-    relation_set(relation_data)
+    relation_set_2(**relation_data)
     synchronize_service_credentials()
 
 def config_changed():
@@ -362,6 +372,10 @@ def cluster_changed():
 
     synchronize_service_credentials()
 
+    for r_id in relation_ids('identity-service'):
+        for unit in relation_list(r_id):
+            # trigger identity-changed to reconfigure HTTPS as necessary
+            identity_changed(relation_id=r_id, remote_unit=unit)
 
 def ha_relation_changed():
     relation_data = relation_get_dict()
