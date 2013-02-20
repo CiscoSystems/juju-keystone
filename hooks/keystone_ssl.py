@@ -269,7 +269,6 @@ class JujuCA(object):
                key, '-out', csr, '-subj', subj]
         subprocess.check_call(cmd)
         crt = self._sign_csr(csr, service, common_name)
-        subprocess.check_call(cmd)
         cmd = ['chown', '-R', '%s.%s' % (self.user, self.group), self.ca_dir]
         subprocess.check_call(cmd)
         print 'Signed new CSR, crt @ %s' % crt
