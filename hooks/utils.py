@@ -583,7 +583,7 @@ def get_ca(user='keystone', group='keystone'):
         if not os.path.isdir(SSL_DIR):
             os.mkdir(SSL_DIR)
         d_name = '_'.join(SSL_CA_NAME.lower().split(' '))
-        ca = ssl.JujuCA(name=SSL_CA_NAME,
+        ca = ssl.JujuCA(name=SSL_CA_NAME, user=user, group=group,
                         ca_dir=os.path.join(SSL_DIR,
                                             '%s_intermediate_ca' % d_name),
                         root_ca_dir=os.path.join(SSL_DIR,

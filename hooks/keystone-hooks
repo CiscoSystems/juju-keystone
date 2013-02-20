@@ -299,7 +299,7 @@ def identity_changed(relation_id=None, remote_unit=None):
 
     # generate or get a new cert/key for service if set to manage certs.
     if config['https-service-endpoints'] in ['True', 'true']:
-        ca = get_ca()
+        ca = get_ca(user=SSH_USER)
         service = os.getenv('JUJU_REMOTE_UNIT').split('/')[0]
         cert, key = ca.get_cert_and_key(common_name=https_cn)
         ca_bundle= ca.get_ca_bundle()

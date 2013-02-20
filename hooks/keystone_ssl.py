@@ -235,7 +235,7 @@ def tar_directory(path):
     return out
 
 class JujuCA(object):
-    def __init__(self, name, ca_dir, root_ca_dir):
+    def __init__(self, name, ca_dir, root_ca_dir, user, group):
         root_crt, root_key = init_root_ca(root_ca_dir,
                                           '%s Certificate Authority' % name)
         init_intermediate_ca(ca_dir,
@@ -243,6 +243,8 @@ class JujuCA(object):
                              root_ca_dir)
         self.ca_dir = ca_dir
         self.root_ca_dir = root_ca_dir
+        self.user = user
+        self.group = group
         update_bundle(CA_BUNDLE, self.get_ca_bundle())
 
     def _sign_csr(self, csr, service, common_name):
@@ -263,6 +265,9 @@ class JujuCA(object):
                key, '-out', csr, '-subj', subj]
         subprocess.check_call(cmd)
         crt = self._sign_csr(csr, service, common_name)
+        for f in [csr, crt, key]:
+            cmd = ['chown', '%s.%s' % (self.user, self.group), f]
+            subprocess.check_call(cmd)
         print 'Signed new CSR, crt @ %s' % crt
         return crt, key
 
