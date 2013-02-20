@@ -241,6 +241,10 @@ class JujuCA(object):
         init_intermediate_ca(ca_dir,
                              '%s Intermediate Certificate Authority' % name,
                              root_ca_dir)
+        cmd = ['chown', '-R', '%s.%s' % (user, group), ca_dir]
+        subprocess.check_call(cmd)
+        cmd = ['chown', '-R', '%s.%s' % (user, group), root_ca_dir]
+        subprocess.check_call(cmd)
         self.ca_dir = ca_dir
         self.root_ca_dir = root_ca_dir
         self.user = user
@@ -263,11 +267,10 @@ class JujuCA(object):
         key = os.path.join(self.ca_dir, 'certs', '%s.key' % service)
         cmd = ['openssl', 'req', '-sha1', '-newkey', 'rsa', '-nodes', '-keyout',
                key, '-out', csr, '-subj', subj]
-        subprocess.check_call(cmd)
         crt = self._sign_csr(csr, service, common_name)
-        for f in [csr, crt, key]:
-            cmd = ['chown', '%s.%s' % (self.user, self.group), f]
-            subprocess.check_call(cmd)
+        subprocess.check_call(cmd)
+        cmd = ['chown', '-R', '%s.%s' % (self.user, self.group), self.ca_dir]
+        subprocess.check_call(cmd)
         print 'Signed new CSR, crt @ %s' % crt
         return crt, key
 
