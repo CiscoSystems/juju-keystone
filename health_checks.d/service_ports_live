@@ -1,0 +1,6 @@
+#!/bin/bash
+# Validate that service ports are active
+. ./healthrc
+set -e
+netstat -ln | grep -q $KEYSTONE_PUBLIC_PORT
+netstat -ln | grep -q $KEYSTONE_ADMIN_PORT

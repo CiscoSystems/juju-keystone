@@ -1,0 +1,5 @@
+#!/bin/bash
+# Validate that service is running
+. ./healthrc
+set -e
+service $KEYSTONE_SERVICE_NAME status | grep -q running
