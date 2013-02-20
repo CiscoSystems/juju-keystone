@@ -208,6 +208,8 @@ def identity_changed(relation_id=None, remote_unit=None):
                      adminurl=settings['admin_url'],
                      internalurl=settings['internal_url'])
         service_username = settings['service']
+        https_cn = urlparse.urlparse(settings['internal_url'])
+        https_cn = https_cn.hostname
     else:
         # assemble multiple endpoints from relation data. service name
         # should be prepended to setting name, ie:
@@ -229,10 +231,11 @@ def identity_changed(relation_id=None, remote_unit=None):
         for k,v in settings.iteritems():
             ep = k.split('_')[0]
             x = '_'.join(k.split('_')[1:])
-            if ep not in  endpoints:
+            if ep not in endpoints:
                 endpoints[ep] = {}
             endpoints[ep][x] = v
         services = []
+        https_cn = None
         for ep in endpoints:
             # weed out any unrelated relation stuff Juju might have added
             # by ensuring each possible endpiont has appropriate fields
@@ -245,6 +248,9 @@ def identity_changed(relation_id=None, remote_unit=None):
                              adminurl=ep['admin_url'],
                              internalurl=ep['internal_url'])
                 services.append(ep['service'])
+                if not https_cn:
+                    https_cn = urlparse.urlparse(ep['internal_url'])
+                    https_cn = https_cn.hostname
         service_username = '_'.join(services)
 
     if 'None' in [v for k,v in settings.iteritems()]:
@@ -293,10 +299,9 @@ def identity_changed(relation_id=None, remote_unit=None):
 
     # generate or get a new cert/key for service if set to manage certs.
     if config['https-service-endpoints'] in ['True', 'true']:
-        url = urlparse.urlparse(settings['internal_url'])
         ca = get_ca()
         service = os.getenv('JUJU_REMOTE_UNIT').split('/')[0]
-        cert, key = ca.get_cert_and_key(common_name=url.hostname)
+        cert, key = ca.get_cert_and_key(common_name=https_cn)
         ca_bundle= ca.get_ca_bundle()
         relation_data['ssl_cert'] = b64encode(cert)
         relation_data['ssl_key'] = b64encode(key)
