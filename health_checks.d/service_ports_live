@@ -1,6 +1,8 @@
 #!/bin/bash
 # Validate that service ports are active
-. ./healthrc
+HEALTH_DIR=`dirname $0`
+UNIT_DIR=`dirname $HEALTH_DIR`
+. $UNIT_DIR/scriptrc
 set -e
 netstat -ln | grep -q $KEYSTONE_PUBLIC_PORT
 netstat -ln | grep -q $KEYSTONE_ADMIN_PORT
