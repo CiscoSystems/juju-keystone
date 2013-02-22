@@ -409,15 +409,6 @@ def load_stored_passwords(path=SERVICE_PASSWD_PATH):
         creds[user] = passwd
     return creds
 
-def save_script_rc(script_path="scriptrc", **env_vars):
-    unit_name = os.getenv('JUJU_UNIT_NAME').replace('/', '-')
-    juju_rc_path="/var/lib/juju/units/%s/charm/%s" % (unit_name, script_path)
-    with open(juju_rc_path, 'wb') as rc_script:
-        rc_script.write(
-            "#!/bin/bash\nexport KEYSTONE_SERVICE_NAME=\"keystone\"\n")
-        [rc_script.write('export %s=%s\n' % (u, p))
-         for u, p in env_vars.iteritems() if u != "script_path"]
-
 def save_stored_passwords(path=SERVICE_PASSWD_PATH, **creds):
     with open(path, 'wb') as stored_passwd:
         [stored_passwd.write('%s:%s\n' % (u, p)) for u, p in creds.iteritems()]

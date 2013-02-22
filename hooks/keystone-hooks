@@ -285,8 +285,9 @@ def config_changed():
         get_os_version_codename(available) > get_os_version_codename(installed)):
         do_openstack_upgrade(config['openstack-origin'], packages)
 
-    env_vars = {'KEYSTONE_ADMIN_PORT': config['admin-port'],
-                'KEYSTONE_PUBLIC_PORT': config['service-port']}
+    env_vars = {'OPENSTACK_SERVICE_KEYSTONE': 'keystone',
+                'OPENSTACK_PORT_ADMIN': config['admin-port'],
+                'OPENSTACK_PORT_PUBLIC': config['service-port']}
     save_script_rc(**env_vars)
 
     set_admin_token(config['admin-token'])
