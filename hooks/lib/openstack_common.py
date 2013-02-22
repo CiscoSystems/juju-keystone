@@ -244,7 +244,7 @@ def configure_haproxy(units, service_ports, template_dir=None):
     with open(HAPROXY_DEFAULT, 'w') as f:
         f.write('ENABLED=1')
 
-def save_script_rc(script_path="scriptrc", **env_vars):
+def save_script_rc(script_path="scripts/scriptrc", **env_vars):
     """
     Write an rc file in the charm-delivered directory containing
     exported environment variables provided by env_vars. Any charm scripts run
