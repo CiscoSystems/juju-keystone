@@ -107,9 +107,7 @@ def get_os_codename_package(pkg):
         e = 'Could not determine version of installed package: %s' % pkg
         error_out(e)
 
-    vers = pkg.current_ver.ver_str
-    if ':' in vers:
-        vers = vers.split(':')[1]
+    vers = apt.UpstreamVersion(pkg.current_ver.ver_str)
 
     try:
         if 'swift' in pkg.name:
