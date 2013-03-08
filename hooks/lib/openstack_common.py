@@ -2,6 +2,7 @@
 
 # Common python helper functions used for OpenStack charms.
 
+import apt_pkg as apt
 import subprocess
 import os
 
@@ -12,7 +13,7 @@ ubuntu_openstack_release = {
     'oneiric': 'diablo',
     'precise': 'essex',
     'quantal': 'folsom',
-    'raring' : 'grizzly'
+    'raring' : 'grizzly',
 }
 
 
@@ -20,7 +21,8 @@ openstack_codenames = {
     '2011.2': 'diablo',
     '2012.1': 'essex',
     '2012.2': 'folsom',
-    '2013.1': 'grizzly'
+    '2013.1': 'grizzly',
+    '2013.2': 'havana',
 }
 
 # The ugly duckling
@@ -29,7 +31,7 @@ swift_codenames = {
     '1.4.8': 'essex',
     '1.7.4': 'folsom',
     '1.7.6': 'grizzly',
-    '1.7.7': 'grizzly'
+    '1.7.7': 'grizzly',
 }
 
 def juju_log(msg):
@@ -97,37 +99,18 @@ def get_os_version_codename(codename):
 
 def get_os_codename_package(pkg):
     '''Derive OpenStack release codename from an installed package.'''
-    cmd = ['dpkg', '-l', pkg]
-
+    apt.init()
+    cache = apt.Cache()
     try:
-        output = subprocess.check_output(cmd)
-    except subprocess.CalledProcessError:
-        e = 'Could not derive OpenStack version from package that is not '\
-            'installed; %s' % pkg
-        error_out(e)
-
-    def _clean(line):
-        line = line.split(' ')
-        clean = []
-        for c in line:
-            if c != '':
-                clean.append(c)
-        return clean
-
-    vers = None
-    for l in output.split('\n'):
-        if l.startswith('ii'):
-            l = _clean(l)
-            if l[1] == pkg:
-                vers = l[2]
-
-    if not vers:
+        pkg = cache[pkg]
+    except:
         e = 'Could not determine version of installed package: %s' % pkg
         error_out(e)
 
-    vers = vers[:6]
+    vers = apt.UpstreamVersion(pkg.current_ver.ver_str)
+
     try:
-        if 'swift' in pkg:
+        if 'swift' in pkg.name:
             vers = vers[:5]
             return swift_codenames[vers]
         else:
