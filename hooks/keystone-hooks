@@ -104,14 +104,14 @@ def db_joined():
 def db_changed():
     relation_data = relation_get_dict()
     if ('password' not in relation_data or
-        'private-address' not in relation_data):
-        juju_log("private-address or password not set. Peer not ready, exit 0")
+        'db_host' not in relation_data):
+        juju_log("db_host or password not set. Peer not ready, exit 0")
         exit(0)
 
     update_config_block('sql', connection="mysql://%s:%s@%s/%s" %
                             (config["database-user"],
                              relation_data["password"],
-                             relation_data["private-address"],
+                             relation_data["db_host"],
                              config["database"]))
 
     execute("service keystone stop", echo=True)
@@ -199,7 +199,21 @@ def identity_changed(relation_id=None, remote_unit=None):
         if 'None' in [v for k,v in settings.iteritems()]:
             # Some backend services advertise no endpoint but require a
             # hook execution to update auth strategy.
+            relation_data = {}
+            # Check if clustered and use vip + haproxy ports if so
+            if is_clustered():
+                relation_data["auth_host"] = config['vip']
+                relation_data["auth_port"] = SERVICE_PORTS['keystone_admin']
+                relation_data["service_host"] = config['vip']
+                relation_data["service_port"] = SERVICE_PORTS['keystone_service']
+            else:
+                relation_data["auth_host"] = config['hostname']
+                relation_data["auth_port"] = config['auth-port']
+                relation_data["service_host"] = config['hostname']
+                relation_data["service_port"] = config['service-port']
+            relation_set(relation_data)
             return
+
 
         ensure_valid_service(settings['service'])
 
@@ -322,6 +336,11 @@ def config_changed():
     if (available and
         get_os_version_codename(available) > get_os_version_codename(installed)):
         do_openstack_upgrade(config['openstack-origin'], packages)
+
+    env_vars = {'OPENSTACK_SERVICE_KEYSTONE': 'keystone',
+                'OPENSTACK_PORT_ADMIN': config['admin-port'],
+                'OPENSTACK_PORT_PUBLIC': config['service-port']}
+    save_script_rc(**env_vars)
 
     set_admin_token(config['admin-token'])
 
