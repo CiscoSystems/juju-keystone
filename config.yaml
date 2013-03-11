@@ -112,3 +112,7 @@ options:
     default: "false"
     type: string
     description: "Enable PKI token signing (Grizzly and beyond)"
+  https-service-endpoints:
+    default: "False"
+    type: string
+    description: "Manage SSL certificates for all service endpoints."
