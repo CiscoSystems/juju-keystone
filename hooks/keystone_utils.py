@@ -442,11 +442,7 @@ def do_openstack_upgrade(install_src, packages):
     execute(cmd, die=True, echo=True)
 
     configure_installation_source(install_src)
-    execute('apt-get update', die=True, echo=True)
-    os.environ['DEBIAN_FRONTEND'] = 'noninteractive'
-    cmd = 'apt-get --option Dpkg::Options::=--force-confnew -y '\
-          'install %s' % packages
-    execute(cmd, echo=True, die=True)
+    utils.install(*packages)
 
     # we have new, fresh config files that need updating.
     # set the admin token, which is still stored in config.
