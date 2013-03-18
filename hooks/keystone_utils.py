@@ -101,10 +101,16 @@ def relation_get_dict(relation_id=None, remote_unit=None):
     return settings
 
 
+_local_endpoint = None
+
+
 def get_local_endpoint():
     """ Returns the URL for the local end-point bypassing haproxy/ssl """
-    api_port = cluster.determine_api_port(utils.config_get('admin-port'))
-    return 'http://localhost:{}/v2.0/'.format(api_port)
+    if not _local_endpoint:
+        _local_endpoint = 'http://localhost:{}/v2.0/'.format(
+            cluster.determine_api_port(utils.config_get('admin-port'))
+            )
+    return _local_endpoint
 
 
 def set_admin_token(admin_token):
