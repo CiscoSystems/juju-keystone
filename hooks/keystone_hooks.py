@@ -408,10 +408,14 @@ def cluster_joined():
         admin_port=cluster.determine_api_port(config["admin-port"]))
     utils.restart('keystone')
     service_ports = {
-        "keystone_admin": \
+        "keystone_admin": [
             cluster.determine_haproxy_port(config['admin-port']),
-        "keystone_service": \
-            cluster.determine_haproxy_port(config['service-port'])
+            cluster.determine_api_port(config["admin-port"])
+            ],
+        "keystone_service": [
+            cluster.determine_haproxy_port(config['service-port']),
+            cluster.determine_api_port(config["service-port"])
+            ]
         }
     haproxy.configure_haproxy(service_ports)
 
@@ -423,10 +427,14 @@ def cluster_changed():
                                 ensure_user=True)
     synchronize_service_credentials()
     service_ports = {
-        "keystone_admin": \
+        "keystone_admin": [
             cluster.determine_haproxy_port(config['admin-port']),
-        "keystone_service": \
-            cluster.determine_haproxy_port(config['service-port'])
+            cluster.determine_api_port(config["admin-port"])
+            ],
+        "keystone_service": [
+            cluster.determine_haproxy_port(config['service-port']),
+            cluster.determine_api_port(config["service-port"])
+            ]
         }
     haproxy.configure_haproxy(service_ports)
 
