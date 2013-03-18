@@ -146,7 +146,7 @@ def ssh_authorized_peers(peer_interface, user, group=None, ensure_user=False):
                                                    remote_unit=unit)
                 if 'ssh_pub_key' in settings:
                     keys.append(settings['ssh_pub_key'])
-                    hosts.append(settings['private_address'])
+                    hosts.append(settings['private-address'])
                 else:
                     utils.juju_log('INFO',
                                    'ssh_authorized_peers(): ssh_pub_key '\
