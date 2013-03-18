@@ -133,6 +133,23 @@ def juju_log(severity, message):
     subprocess.check_call(cmd)
 
 
+cache = {}
+
+
+def cached(func):
+    def wrapper(*args, **kwargs):
+        global cache
+        key = str((func, args, kwargs))
+        try:
+            return cache[key]
+        except KeyError:
+            res = func(*args, **kwargs)
+            cache[key] = res
+            return res
+    return wrapper
+
+
+@cached
 def relation_ids(relation):
     cmd = [
         'relation-ids',
@@ -145,6 +162,7 @@ def relation_ids(relation):
         return result
 
 
+@cached
 def relation_list(rid):
     cmd = [
         'relation-list',
@@ -157,6 +175,7 @@ def relation_list(rid):
         return result
 
 
+@cached
 def relation_get(attribute, unit=None, rid=None):
     cmd = [
         'relation-get',
@@ -174,6 +193,7 @@ def relation_get(attribute, unit=None, rid=None):
         return value
 
 
+@cached
 def relation_get_dict(relation_id=None, remote_unit=None):
     """Obtain all relation data as dict by way of JSON"""
     cmd = [
@@ -212,6 +232,7 @@ def relation_set(**kwargs):
     subprocess.check_call(cmd)
 
 
+@cached
 def unit_get(attribute):
     cmd = [
         'unit-get',
@@ -224,6 +245,7 @@ def unit_get(attribute):
         return value
 
 
+@cached
 def config_get(attribute):
     cmd = [
         'config-get',
@@ -239,10 +261,12 @@ def config_get(attribute):
         return None
 
 
+@cached
 def get_unit_hostname():
     return socket.gethostname()
 
 
+@cached
 def get_host_ip(hostname=unit_get('private-address')):
     try:
         # Test to see if already an IPv4 address
