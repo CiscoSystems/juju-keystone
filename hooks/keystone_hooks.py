@@ -159,20 +159,20 @@ def db_changed():
                        'Cluster leader, performing db-sync')
         execute("keystone-manage db_sync", echo=True)
     utils.start('keystone')
-
     time.sleep(5)
-    ensure_initial_admin(config)
 
-    # If the backend database has been switched to something new and there
-    # are existing identity-service relations,, service entries need to be
-    # recreated in the new database.  Re-executing identity-service-changed
-    # will do this.
-    for rid in utils.relation_ids('identity-service'):
-        for unit in utils.relation_list(rid=rid):
-            utils.juju_log('INFO',
-                           "Re-exec'ing identity-service-changed"
-                           " for: %s - %s" % (rid, unit))
-            identity_changed(relation_id=rid, remote_unit=unit)
+    if cluster.eligible_leader(CLUSTER_RES):
+        ensure_initial_admin(config)
+        # If the backend database has been switched to something new and there
+        # are existing identity-service relations,, service entries need to be
+        # recreated in the new database.  Re-executing identity-service-changed
+        # will do this.
+        for rid in utils.relation_ids('identity-service'):
+            for unit in utils.relation_list(rid=rid):
+                utils.juju_log('INFO',
+                               "Re-exec'ing identity-service-changed"
+                               " for: %s - %s" % (rid, unit))
+                identity_changed(relation_id=rid, remote_unit=unit)
 
 
 def ensure_valid_service(service):
