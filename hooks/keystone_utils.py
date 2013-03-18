@@ -82,25 +82,6 @@ def config_get():
     return config
 
 
-def relation_get_dict(relation_id=None, remote_unit=None):
-    """Obtain all relation data as dict by way of JSON"""
-    cmd = 'relation-get --format=json'
-    if relation_id:
-        cmd += ' -r %s' % relation_id
-    if remote_unit:
-        remote_unit_orig = os.getenv('JUJU_REMOTE_UNIT', None)
-        os.environ['JUJU_REMOTE_UNIT'] = remote_unit
-    j = execute(cmd, die=True)[0]
-    if remote_unit and remote_unit_orig:
-        os.environ['JUJU_REMOTE_UNIT'] = remote_unit_orig
-    d = json.loads(j)
-    settings = {}
-    # convert unicode to strings
-    for k, v in d.iteritems():
-        settings[str(k)] = str(v)
-    return settings
-
-
 def get_local_endpoint():
     """ Returns the URL for the local end-point bypassing haproxy/ssl """
     local_endpoint = 'http://localhost:{}/v2.0/'.format(
@@ -478,8 +459,8 @@ def do_openstack_upgrade(install_src, packages):
                                'Configuring new keystone.conf for '
                                'database access on existing database'
                                ' relation to %s' % unit)
-                relation_data = relation_get_dict(relation_id=rid,
-                                                  remote_unit=unit)
+                relation_data = utils.relation_get_dict(relation_id=rid,
+                                                        remote_unit=unit)
 
                 update_config_block('sql', connection="mysql://%s:%s@%s/%s" %
                                         (config["database-user"],

@@ -12,7 +12,6 @@ from keystone_utils import (
     update_config_block,
     set_admin_token,
     ensure_initial_admin,
-    relation_get_dict,
     create_service_entry,
     create_endpoint_template,
     create_role,
@@ -140,7 +139,7 @@ def db_joined():
 
 
 def db_changed():
-    relation_data = relation_get_dict()
+    relation_data = utils.relation_get_dict()
     if ('password' not in relation_data or
         'db_host' not in relation_data):
         utils.juju_log('INFO',
@@ -209,8 +208,8 @@ def identity_changed(relation_id=None, remote_unit=None):
                        'Deferring identity_changed() to service leader.')
         return
 
-    settings = relation_get_dict(relation_id=relation_id,
-                                 remote_unit=remote_unit)
+    settings = utils.relation_get_dict(relation_id=relation_id,
+                                       remote_unit=remote_unit)
 
     # Allow the remote service to request creation of any additional roles.
     # Currently used by Swift.
@@ -440,7 +439,7 @@ def cluster_changed():
 
 
 def ha_relation_changed():
-    relation_data = relation_get_dict()
+    relation_data = utils.relation_get_dict()
     if ('clustered' in relation_data and
         cluster.is_leader(CLUSTER_RES)):
         utils.juju_log('INFO',
