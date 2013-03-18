@@ -363,11 +363,17 @@ def ensure_initial_admin(config):
     create_role("KeystoneServiceAdmin", config["admin-user"], 'admin')
     create_service_entry("keystone", "identity", "Keystone Identity Service")
 
-    utils.juju_log('INFO', "Creating standard endpoint")
+    if cluster.is_clustered():
+        utils.juju_log('INFO', "Creating endpoint for clustered configuration")
+        service_host = auth_host = config["vip"]
+    else:
+        utils.juju_log('INFO', "Creating standard endpoint")
+        service_host = auth_host = config["hostname"]
+
     for region in config['region'].split():
-        create_keystone_endpoint(service_host=config["hostname"],
+        create_keystone_endpoint(service_host=service_host,
                                  service_port=config["service-port"],
-                                 auth_host=config["hostname"],
+                                 auth_host=auth_host,
                                  auth_port=config["admin-port"],
                                  region=region)
 
