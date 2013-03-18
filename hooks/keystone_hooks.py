@@ -1,19 +1,53 @@
 #!/usr/bin/python
 
-import sys
+import os
 import time
 import urlparse
 
 from base64 import b64encode
 
-from utils import *
+from keystone_utils import (
+    config_get,
+    execute,
+    update_config_block,
+    set_admin_token,
+    ensure_initial_admin,
+    relation_get_dict,
+    create_service_entry,
+    create_endpoint_template,
+    create_role,
+    get_admin_token,
+    get_service_password,
+    create_user,
+    grant_role,
+    get_ca,
+    synchronize_service_credentials,
+    do_openstack_upgrade,
+    configure_pki_tokens,
+    SSH_USER,
+    SSL_DIR,
+    CLUSTER_RES
+    )
 
-from lib.openstack_common import *
+from lib.openstack_common import (
+    configure_installation_source,
+    get_os_codename_install_source,
+    get_os_codename_package,
+    get_os_version_codename,
+    get_os_version_package,
+    save_script_rc
+    )
 import lib.unison as unison
+import lib.utils as utils
+import lib.cluster_utils as cluster
+import lib.haproxy_utils as haproxy
 
 config = config_get()
 
-packages = "keystone python-mysqldb pwgen haproxy python-jinja2 openssl unison"
+packages = [
+    "keystone", "python-mysqldb", "pwgen",
+    "haproxy", "python-jinja2", "openssl", "unison"
+    ]
 service = "keystone"
 
 # used to verify joined services are valid openstack components.
@@ -62,13 +96,15 @@ valid_services = {
     }
 }
 
+
 def install_hook():
     if config["openstack-origin"] != "distro":
         configure_installation_source(config["openstack-origin"])
-    execute("apt-get update", die=True)
-    execute("apt-get -y install %s" % packages, die=True, echo=True)
-    update_config_block('DEFAULT', public_port=config["service-port"])
-    update_config_block('DEFAULT', admin_port=config["admin-port"])
+    utils.install(packages)
+    update_config_block('DEFAULT',
+                public_port=cluster.determine_api_port(config["service-port"]))
+    update_config_block('DEFAULT',
+                admin_port=cluster.determine_api_port(config["admin-port"]))
     set_admin_token(config['admin-token'])
 
     # set all backends to use sql+sqlite, if they are not already by default
@@ -83,9 +119,9 @@ def install_hook():
     update_config_block('ec2',
                         driver='keystone.contrib.ec2.backends.sql.Ec2')
 
-    execute("service keystone stop", echo=True)
+    utils.stop('keystone')
     execute("keystone-manage db_sync")
-    execute("service keystone start", echo=True)
+    utils.start('keystone')
 
     # ensure /var/lib/keystone is g+wrx for peer relations that
     # may be syncing data there via SSH_USER.
@@ -96,17 +132,21 @@ def install_hook():
 
 
 def db_joined():
-    relation_data = { "database": config["database"],
-                      "username": config["database-user"],
-                      "hostname": config["hostname"] }
-    relation_set(relation_data)
+    relation_data = {
+        "database": config["database"],
+        "username": config["database-user"],
+        "hostname": config["hostname"]
+        }
+    utils.relation_set(**relation_data)
+
 
 def db_changed():
     relation_data = relation_get_dict()
     if ('password' not in relation_data or
         'db_host' not in relation_data):
-        juju_log("db_host or password not set. Peer not ready, exit 0")
-        exit(0)
+        utils.juju_log('INFO',
+                       "db_host or password not set. Peer not ready, exit 0")
+        return
 
     update_config_block('sql', connection="mysql://%s:%s@%s/%s" %
                             (config["database-user"],
@@ -114,15 +154,13 @@ def db_changed():
                              relation_data["db_host"],
                              config["database"]))
 
-    execute("service keystone stop", echo=True)
+    utils.stop('keystone')
+    if cluster.eligible_leader(CLUSTER_RES):
+        utils.juju_log('INFO',
+                       'Cluster leader, performing db-sync')
+        execute("keystone-manage db_sync", echo=True)
+    utils.start('keystone')
 
-    if not eligible_leader():
-        juju_log('Deferring DB initialization to service leader.')
-        execute("service keystone start")
-        return
-
-    execute("keystone-manage db_sync", echo=True)
-    execute("service keystone start")
     time.sleep(5)
     ensure_initial_admin(config)
 
@@ -130,30 +168,36 @@ def db_changed():
     # are existing identity-service relations,, service entries need to be
     # recreated in the new database.  Re-executing identity-service-changed
     # will do this.
-    for id in relation_ids(relation_name='identity-service'):
-        for unit in relation_list(relation_id=id):
-            juju_log("Re-exec'ing identity-service-changed for: %s - %s" %
-                     (id, unit))
-            identity_changed(relation_id=id, remote_unit=unit)
+    for rid in utils.relation_ids('identity-service'):
+        for unit in utils.relation_list(rid=rid):
+            utils.juju_log('INFO',
+                           "Re-exec'ing identity-service-changed"
+                           " for: %s - %s" % (rid, unit))
+            identity_changed(relation_id=rid, remote_unit=unit)
+
 
 def ensure_valid_service(service):
     if service not in valid_services.keys():
-        juju_log("WARN: Invalid service requested: '%s'" % service)
-        realtion_set({ "admin_token": -1 })
+        utils.juju_log('WARNING',
+                       "Invalid service requested: '%s'" % service)
+        utils.relation_set(admin_token=-1)
         return
 
-def add_endpoint(region, service, public_url, admin_url, internal_url):
+
+def add_endpoint(region, service, publicurl, adminurl, internalurl):
     desc = valid_services[service]["desc"]
     service_type = valid_services[service]["type"]
     create_service_entry(service, service_type, desc)
     create_endpoint_template(region=region, service=service,
-                             public_url=public_url,
-                             admin_url=admin_url,
-                             internal_url=internal_url)
+                             publicurl=publicurl,
+                             adminurl=adminurl,
+                             internalurl=internalurl)
+
 
 def identity_joined():
     """ Do nothing until we get information about requested service """
     pass
+
 
 def identity_changed(relation_id=None, remote_unit=None):
     """ A service has advertised its API endpoints, create an entry in the
@@ -161,23 +205,9 @@ def identity_changed(relation_id=None, remote_unit=None):
         Optionally allow this hook to be re-fired for an existing
         relation+unit, for context see see db_changed().
     """
-    def ensure_valid_service(service):
-        if service not in valid_services.keys():
-            juju_log("WARN: Invalid service requested: '%s'" % service)
-            realtion_set({ "admin_token": -1 })
-            return
-
-    def add_endpoint(region, service, publicurl, adminurl, internalurl):
-        desc = valid_services[service]["desc"]
-        service_type = valid_services[service]["type"]
-        create_service_entry(service, service_type, desc)
-        create_endpoint_template(region=region, service=service,
-                                 publicurl=publicurl,
-                                 adminurl=adminurl,
-                                 internalurl=internalurl)
-
-    if not eligible_leader():
-        juju_log('Deferring identity_changed() to service leader.')
+    if not cluster.eligible_leader(CLUSTER_RES):
+        utils.juju_log('INFO',
+                       'Deferring identity_changed() to service leader.')
         return
 
     settings = relation_get_dict(relation_id=relation_id,
@@ -187,7 +217,8 @@ def identity_changed(relation_id=None, remote_unit=None):
     # Currently used by Swift.
     if 'requested_roles' in settings and settings['requested_roles'] != 'None':
         roles = settings['requested_roles'].split(',')
-        juju_log("Creating requested roles: %s" % roles)
+        utils.juju_log('INFO',
+                       "Creating requested roles: %s" % roles)
         for role in roles:
             create_role(role, user=config['admin-user'], tenant='admin')
 
@@ -196,24 +227,21 @@ def identity_changed(relation_id=None, remote_unit=None):
                   'internal_url'])
     if single.issubset(settings):
         # other end of relation advertised only one endpoint
-        if 'None' in [v for k,v in settings.iteritems()]:
+        if 'None' in [v for k, v in settings.iteritems()]:
             # Some backend services advertise no endpoint but require a
             # hook execution to update auth strategy.
             relation_data = {}
             # Check if clustered and use vip + haproxy ports if so
-            if is_clustered():
+            if cluster.is_clustered():
                 relation_data["auth_host"] = config['vip']
-                relation_data["auth_port"] = SERVICE_PORTS['keystone_admin']
                 relation_data["service_host"] = config['vip']
-                relation_data["service_port"] = SERVICE_PORTS['keystone_service']
             else:
                 relation_data["auth_host"] = config['hostname']
-                relation_data["auth_port"] = config['admin-port']
                 relation_data["service_host"] = config['hostname']
-                relation_data["service_port"] = config['service-port']
-            relation_set(relation_data)
+            relation_data["auth_port"] = config['admin-port']
+            relation_data["service_port"] = config['service-port']
+            utils.relation_set(**relation_data)
             return
-
 
         ensure_valid_service(settings['service'])
 
@@ -242,7 +270,7 @@ def identity_changed(relation_id=None, remote_unit=None):
         #   }
         # }
         endpoints = {}
-        for k,v in settings.iteritems():
+        for k, v in settings.iteritems():
             ep = k.split('_')[0]
             x = '_'.join(k.split('_')[1:])
             if ep not in endpoints:
@@ -267,18 +295,20 @@ def identity_changed(relation_id=None, remote_unit=None):
                     https_cn = https_cn.hostname
         service_username = '_'.join(services)
 
-    if 'None' in [v for k,v in settings.iteritems()]:
+    if 'None' in [v for k, v in settings.iteritems()]:
         return
 
     if not service_username:
         return
 
     token = get_admin_token()
-    juju_log("Creating service credentials for '%s'" % service_username)
+    utils.juju_log('INFO',
+                   "Creating service credentials for '%s'" % service_username)
 
     service_password = get_service_password(service_username)
     create_user(service_username, service_password, config['service-tenant'])
-    grant_role(service_username, config['admin-role'], config['service-tenant'])
+    grant_role(service_username, config['admin-role'],
+               config['service-tenant'])
 
     # As of https://review.openstack.org/#change,4675, all nodes hosting
     # an endpoint(s) needs a service username and password assigned to
@@ -305,26 +335,24 @@ def identity_changed(relation_id=None, remote_unit=None):
         relation_data['rid'] = relation_id
 
     # Check if clustered and use vip + haproxy ports if so
-    if is_clustered():
+    if cluster.is_clustered():
         relation_data["auth_host"] = config['vip']
-        relation_data["auth_port"] = SERVICE_PORTS['keystone_admin']
         relation_data["service_host"] = config['vip']
-        relation_data["service_port"] = SERVICE_PORTS['keystone_service']
 
     # generate or get a new cert/key for service if set to manage certs.
     if config['https-service-endpoints'] in ['True', 'true']:
         ca = get_ca(user=SSH_USER)
-        service = os.getenv('JUJU_REMOTE_UNIT').split('/')[0]
         cert, key = ca.get_cert_and_key(common_name=https_cn)
-        ca_bundle= ca.get_ca_bundle()
+        ca_bundle = ca.get_ca_bundle()
         relation_data['ssl_cert'] = b64encode(cert)
         relation_data['ssl_key'] = b64encode(key)
         relation_data['ca_cert'] = b64encode(ca_bundle)
         relation_data['https_keystone'] = 'True'
         unison.sync_to_peers(peer_interface='cluster',
                              paths=[SSL_DIR], user=SSH_USER, verbose=True)
-    relation_set_2(**relation_data)
+    utils.relation_set(**relation_data)
     synchronize_service_credentials()
+
 
 def config_changed():
 
@@ -334,7 +362,8 @@ def config_changed():
     installed = get_os_codename_package('keystone')
 
     if (available and
-        get_os_version_codename(available) > get_os_version_codename(installed)):
+        get_os_version_codename(available) > \
+            get_os_version_codename(installed)):
         do_openstack_upgrade(config['openstack-origin'], packages)
 
     env_vars = {'OPENSTACK_SERVICE_KEYSTONE': 'keystone',
@@ -344,8 +373,10 @@ def config_changed():
 
     set_admin_token(config['admin-token'])
 
-    if eligible_leader():
-        juju_log('Cluster leader - ensuring endpoint configuration is up to date')
+    if cluster.eligible_leader(CLUSTER_RES):
+        utils.juju_log('INFO',
+                       'Cluster leader - ensuring endpoint configuration'
+                       ' is up to date')
         ensure_initial_admin(config)
 
     update_config_block('logger_root', level=config['log-level'],
@@ -354,69 +385,68 @@ def config_changed():
         # PKI introduced in Grizzly
         configure_pki_tokens(config)
 
-    execute("service keystone restart", echo=True)
+    utils.restart('keystone')
     cluster_changed()
 
 
 def upgrade_charm():
     cluster_changed()
-    if eligible_leader():
-        juju_log('Cluster leader - ensuring endpoint configuration is up to date')
+    if cluster.eligible_leader(CLUSTER_RES):
+        utils.juju_log('INFO',
+                       'Cluster leader - ensuring endpoint configuration'
+                       ' is up to date')
         ensure_initial_admin(config)
 
-
-SERVICE_PORTS = {
-    "keystone_admin": int(config['admin-port']) + 1,
-    "keystone_service": int(config['service-port']) + 1
-    }
 
 def cluster_joined():
     unison.ssh_authorized_peers(user=SSH_USER,
                                 group='keystone',
                                 peer_interface='cluster',
                                 ensure_user=True)
+    update_config_block('DEFAULT',
+        public_port=cluster.determine_api_port(config["service-port"]))
+    update_config_block('DEFAULT',
+        admin_port=cluster.determine_api_port(config["admin-port"]))
+    utils.restart('keystone')
+    service_ports = {
+        "keystone_admin": \
+            cluster.determine_haproxy_port(config['admin-port']),
+        "keystone_service": \
+            cluster.determine_haproxy_port(config['service-port'])
+        }
+    haproxy.configure_haproxy(service_ports)
+
 
 def cluster_changed():
     unison.ssh_authorized_peers(user=SSH_USER,
-                                   group='keystone',
-                                   peer_interface='cluster',
-                                   ensure_user=True)
-    cluster_hosts = {}
-    cluster_hosts['self'] = config['hostname']
-    for r_id in relation_ids('cluster'):
-        for unit in relation_list(r_id):
-            # trigger identity-changed to reconfigure HTTPS
-            # as necessary.
-            identity_changed(relation_id=r_id, remote_unit=unit)
-            cluster_hosts[unit.replace('/','-')] = \
-                relation_get_dict(relation_id=r_id,
-                                  remote_unit=unit)['private-address']
-    configure_haproxy(cluster_hosts,
-                      SERVICE_PORTS)
-
+                                group='keystone',
+                                peer_interface='cluster',
+                                ensure_user=True)
     synchronize_service_credentials()
+    service_ports = {
+        "keystone_admin": \
+            cluster.determine_haproxy_port(config['admin-port']),
+        "keystone_service": \
+            cluster.determine_haproxy_port(config['service-port'])
+        }
+    haproxy.configure_haproxy(service_ports)
 
-    for r_id in relation_ids('identity-service'):
-        for unit in relation_list(r_id):
-            # trigger identity-changed to reconfigure HTTPS as necessary
-            identity_changed(relation_id=r_id, remote_unit=unit)
 
 def ha_relation_changed():
     relation_data = relation_get_dict()
     if ('clustered' in relation_data and
-        is_leader()):
-        juju_log('Cluster configured, notifying other services and updating'
-                 'keystone endpoint configuration')
+        cluster.is_leader(CLUSTER_RES)):
+        utils.juju_log('INFO',
+                       'Cluster configured, notifying other services'
+                       ' and updating keystone endpoint configuration')
         # Update keystone endpoint to point at VIP
         ensure_initial_admin(config)
         # Tell all related services to start using
         # the VIP and haproxy ports instead
-        for r_id in relation_ids('identity-service'):
-            relation_set_2(rid=r_id,
-                           auth_host=config['vip'],
-                           service_host=config['vip'],
-                           service_port=SERVICE_PORTS['keystone_service'],
-                           auth_port=SERVICE_PORTS['keystone_admin'])
+        for r_id in utils.relation_ids('identity-service'):
+            utils.relation_set(rid=r_id,
+                               auth_host=config['vip'],
+                               service_host=config['vip'])
 
 
 def ha_relation_joined():
@@ -424,41 +454,33 @@ def ha_relation_joined():
     # include multicast port and interface to bind to.
     corosync_bindiface = config['ha-bindiface']
     corosync_mcastport = config['ha-mcastport']
+    vip = config['vip']
+    vip_cidr = config['vip_cidr']
+    vip_iface = config['vip_iface']
 
     # Obtain resources
     resources = {
-            'res_ks_vip':'ocf:heartbeat:IPaddr2',
-            'res_ks_haproxy':'lsb:haproxy'
+        'res_ks_vip': 'ocf:heartbeat:IPaddr2',
+        'res_ks_haproxy': 'lsb:haproxy'
         }
-    # TODO: Obtain netmask and nic where to place VIP.
     resource_params = {
-            'res_ks_vip':'params ip="%s" cidr_netmask="%s" nic="%s"' % (config['vip'],
-                              config['vip_cidr'], config['vip_iface']),
-            'res_ks_haproxy':'op monitor interval="5s"'
+        'res_ks_vip': 'params ip="%s" cidr_netmask="%s" nic="%s"' % \
+                      (vip, vip_cidr, vip_iface),
+        'res_ks_haproxy': 'op monitor interval="5s"'
         }
     init_services = {
-            'res_ks_haproxy':'haproxy'
+        'res_ks_haproxy': 'haproxy'
         }
-    groups = {
-            'grp_ks_haproxy':'res_ks_vip res_ks_haproxy'
+    clones = {
+        'gl_ks_haproxy': 'res_ks_haproxy'
         }
-    #clones = {
-    #        'cln_ks_haproxy':'res_ks_haproxy meta globally-unique="false" interleave="true"'
-    #    }
 
-    #orders = {
-    #        'ord_vip_before_haproxy':'inf: res_ks_vip res_ks_haproxy'
-    #    }
-    #colocations = {
-    #        'col_vip_on_haproxy':'inf: res_ks_haproxy res_ks_vip'
-    #    }
-
-    relation_set_2(init_services=init_services,
-                   corosync_bindiface=corosync_bindiface,
-                   corosync_mcastport=corosync_mcastport,
-                   resources=resources,
-                   resource_params=resource_params,
-                   groups=groups)
+    utils.relation_set(init_services=init_services,
+                       corosync_bindiface=corosync_bindiface,
+                       corosync_mcastport=corosync_mcastport,
+                       resources=resources,
+                       resource_params=resource_params,
+                       clones=clones)
 
 
 hooks = {
@@ -476,9 +498,4 @@ hooks = {
     "upgrade-charm": upgrade_charm
 }
 
-# keystone-hooks gets called by symlink corresponding to the requested relation
-# hook.
-hook = os.path.basename(sys.argv[0])
-if hook not in hooks.keys():
-    error_out("Unsupported hook: %s" % hook)
-hooks[hook]()
+utils.do_hooks(hooks)
