@@ -364,7 +364,8 @@ def config_changed():
     if (available and
         get_os_version_codename(available) > \
             get_os_version_codename(installed)):
-        do_openstack_upgrade(config['openstack-origin'], packages)
+        # TODO: fixup this call to work like utils.install()
+        do_openstack_upgrade(config['openstack-origin'], ' '.join(packages))
 
     env_vars = {'OPENSTACK_SERVICE_KEYSTONE': 'keystone',
                 'OPENSTACK_PORT_ADMIN': config['admin-port'],
