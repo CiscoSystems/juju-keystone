@@ -40,12 +40,10 @@
 #       Either copy required functionality to this library or depend on
 #       something more generic.
 
-import json
 import os
 import sys
-import utils
+import lib.utils as utils
 import subprocess
-import shutil
 import grp
 import pwd
 
@@ -55,7 +53,8 @@ def get_homedir(user):
         user = pwd.getpwnam(user)
         return user.pw_dir
     except KeyError:
-        utils.juju_log('Could not get homedir for user %s: user exists?')
+        utils.juju_log('INFO',
+                       'Could not get homedir for user %s: user exists?')
         sys.exit(1)
 
 
@@ -67,27 +66,29 @@ def get_keypair(user):
 
     priv_key = os.path.join(ssh_dir, 'id_rsa')
     if not os.path.isfile(priv_key):
-        utils.juju_log('Generating new ssh key for user %s.' % user)
+        utils.juju_log('INFO', 'Generating new ssh key for user %s.' % user)
         cmd = ['ssh-keygen', '-q', '-N', '', '-t', 'rsa', '-b', '2048',
                '-f', priv_key]
         subprocess.check_call(cmd)
 
     pub_key = '%s.pub' % priv_key
     if not os.path.isfile(pub_key):
-        utils.juju_log('Generatring missing ssh public key @ %s.' % pub_key)
+        utils.juju_log('INFO', 'Generatring missing ssh public key @ %s.' % \
+                       pub_key)
         cmd = ['ssh-keygen', '-y', '-f', priv_key]
         p = subprocess.check_output(cmd).strip()
         with open(pub_key, 'wb') as out:
             out.write(p)
     subprocess.check_call(['chown', '-R', user, ssh_dir])
-    return open(priv_key, 'r').read().strip(), open(pub_key, 'r').read().strip()
+    return open(priv_key, 'r').read().strip(), \
+           open(pub_key, 'r').read().strip()
 
 
 def write_authorized_keys(user, keys):
     home_dir = get_homedir(user)
     ssh_dir = os.path.join(home_dir, '.ssh')
     auth_keys = os.path.join(ssh_dir, 'authorized_keys')
-    utils.juju_log('Syncing authorized_keys @ %s.' % auth_keys)
+    utils.juju_log('INFO', 'Syncing authorized_keys @ %s.' % auth_keys)
     with open(auth_keys, 'wb') as out:
         for k in keys:
             out.write('%s\n' % k)
@@ -96,13 +97,13 @@ def write_authorized_keys(user, keys):
 def write_known_hosts(user, hosts):
     home_dir = get_homedir(user)
     ssh_dir = os.path.join(home_dir, '.ssh')
-    known_hosts  = os.path.join(ssh_dir, 'known_hosts')
+    known_hosts = os.path.join(ssh_dir, 'known_hosts')
     khosts = []
     for host in hosts:
         cmd = ['ssh-keyscan', '-H', '-t', 'rsa', host]
         remote_key = subprocess.check_output(cmd).strip()
         khosts.append(remote_key)
-    utils.juju_log('Syncing known_hosts @ %s.' % known_hosts)
+    utils.juju_log('INFO', 'Syncing known_hosts @ %s.' % known_hosts)
     with open(known_hosts, 'wb') as out:
         for host in khosts:
             out.write('%s\n' % host)
@@ -113,7 +114,7 @@ def _ensure_user(user, group=None):
     try:
         pwd.getpwnam(user)
     except KeyError:
-        utils.juju_log('Creating new user %s.%s.' % (user, group))
+        utils.juju_log('INFO', 'Creating new user %s.%s.' % (user, group))
         cmd = ['adduser', '--system', '--shell', '/bin/bash', user]
         if group:
             try:
@@ -134,7 +135,7 @@ def ssh_authorized_peers(peer_interface, user, group=None, ensure_user=False):
     priv_key, pub_key = get_keypair(user)
     hook = os.path.basename(sys.argv[0])
     if hook == '%s-relation-joined' % peer_interface:
-        utils.relation_set_2(ssh_pub_key=pub_key)
+        utils.relation_set(ssh_pub_key=pub_key)
         print 'joined'
     elif hook == '%s-relation-changed' % peer_interface:
         hosts = []
@@ -145,36 +146,40 @@ def ssh_authorized_peers(peer_interface, user, group=None, ensure_user=False):
                                                    remote_unit=unit)
                 if 'ssh_pub_key' in settings:
                     keys.append(settings['ssh_pub_key'])
-                    hosts.append(settings['private-address'])
+                    hosts.append(settings['private_address'])
                 else:
-                    utils.juju_log('ssh_authorized_peers(): ssh_pub_key '\
+                    utils.juju_log('INFO',
+                                   'ssh_authorized_peers(): ssh_pub_key '\
                                    'missing for unit %s, skipping.' % unit)
         write_authorized_keys(user, keys)
         write_known_hosts(user, hosts)
         authed_hosts = ':'.join(hosts)
-        utils.relation_set_2(ssh_authorized_hosts=authed_hosts)
+        utils.relation_set(ssh_authorized_hosts=authed_hosts)
 
 
 def _run_as_user(user):
     try:
         user = pwd.getpwnam(user)
     except KeyError:
-        utils.juju_log('Invalid user: %s' % user)
+        utils.juju_log('INFO', 'Invalid user: %s' % user)
         sys.exit(1)
     uid, gid = user.pw_uid, user.pw_gid
     os.environ['HOME'] = user.pw_dir
+
     def _inner():
         os.setgid(gid)
         os.setuid(uid)
     return _inner
 
+
 def run_as_user(user, cmd):
     return subprocess.check_output(cmd, preexec_fn=_run_as_user(user))
 
+
 def sync_to_peers(peer_interface, user, paths=[], verbose=False):
     base_cmd = ['unison', '-auto', '-batch=true', '-confirmbigdel=false',
-                '-fastcheck=true', '-group=false', '-owner=false', '-prefer=newer',
-                '-times=true']
+                '-fastcheck=true', '-group=false', '-owner=false',
+                '-prefer=newer', '-times=true']
     if not verbose:
         base_cmd.append('-silent')
 
@@ -206,10 +211,10 @@ def sync_to_peers(peer_interface, user, paths=[], verbose=False):
         # removing trailing slash from directory paths, unison
         # doesn't like these.
         if path.endswith('/'):
-            path = path[:(len(path)-1)]
+            path = path[:(len(path) - 1)]
         for host in hosts:
             cmd = base_cmd + [path, 'ssh://%s@%s/%s' % (user, host, path)]
-            utils.juju_log('Syncing local path %s to %s@%s:%s' %\
+            utils.juju_log('INFO', 'Syncing local path %s to %s@%s:%s' %\
                             (path, user, host, path))
             print ' '.join(cmd)
             run_as_user(user, cmd)
