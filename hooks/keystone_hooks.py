@@ -479,7 +479,7 @@ def ha_relation_joined():
         'res_ks_haproxy': 'haproxy'
         }
     clones = {
-        'gl_ks_haproxy': 'res_ks_haproxy'
+        'cl_ks_haproxy': 'res_ks_haproxy'
         }
 
     utils.relation_set(init_services=init_services,
