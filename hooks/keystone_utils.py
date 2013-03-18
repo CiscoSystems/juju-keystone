@@ -101,16 +101,14 @@ def relation_get_dict(relation_id=None, remote_unit=None):
     return settings
 
 
-_local_endpoint = None
-
-
 def get_local_endpoint():
     """ Returns the URL for the local end-point bypassing haproxy/ssl """
-    if not _local_endpoint:
-        _local_endpoint = 'http://localhost:{}/v2.0/'.format(
-            cluster.determine_api_port(utils.config_get('admin-port'))
-            )
-    return _local_endpoint
+    local_endpoint = 'http://localhost:{}/v2.0/'.format(
+        cluster.determine_api_port(utils.config_get('admin-port'))
+        )
+    return local_endpoint
+
+LOCAL_ENDPOINT = get_local_endpoint()
 
 
 def set_admin_token(admin_token):
@@ -180,7 +178,7 @@ def update_config_block(section, **kwargs):
 def create_service_entry(service_name, service_type, service_desc, owner=None):
     """ Add a new service entry to keystone if one does not already exist """
     import manager
-    manager = manager.KeystoneManager(endpoint=get_local_endpoint(),
+    manager = manager.KeystoneManager(endpoint=LOCAL_ENDPOINT,
                                       token=get_admin_token())
     for service in [s._info for s in manager.api.services.list()]:
         if service['name'] == service_name:
@@ -199,7 +197,7 @@ def create_endpoint_template(region, service,  publicurl, adminurl,
     """ Create a new endpoint template for service if one does not already
         exist matching name *and* region """
     import manager
-    manager = manager.KeystoneManager(endpoint=get_local_endpoint(),
+    manager = manager.KeystoneManager(endpoint=LOCAL_ENDPOINT,
                                       token=get_admin_token())
     service_id = manager.resolve_service_id(service)
     for ep in [e._info for e in manager.api.endpoints.list()]:
@@ -234,7 +232,7 @@ def create_endpoint_template(region, service,  publicurl, adminurl,
 def create_tenant(name):
     """ creates a tenant if it does not already exist """
     import manager
-    manager = manager.KeystoneManager(endpoint=get_local_endpoint(),
+    manager = manager.KeystoneManager(endpoint=LOCAL_ENDPOINT,
                                       token=get_admin_token())
     tenants = [t._info for t in manager.api.tenants.list()]
     if not tenants or name not in [t['name'] for t in tenants]:
@@ -295,7 +293,7 @@ def create_role(name, user=None, tenant=None):
 def grant_role(user, role, tenant):
     """grant user+tenant a specific role"""
     import manager
-    manager = manager.KeystoneManager(endpoint=get_local_endpoint(),
+    manager = manager.KeystoneManager(endpoint=LOCAL_ENDPOINT,
                                       token=get_admin_token())
     utils.juju_log('INFO', "Granting user '%s' role '%s' on tenant '%s'" % \
                    (user, role, tenant))
@@ -319,7 +317,7 @@ def grant_role(user, role, tenant):
 def generate_admin_token(config):
     """ generate and add an admin token """
     import manager
-    manager = manager.KeystoneManager(endpoint=get_local_endpoint(),
+    manager = manager.KeystoneManager(endpoint=LOCAL_ENDPOINT,
                                       token='ADMIN')
     if config["admin-token"] == "None":
         import random
@@ -385,7 +383,7 @@ def create_keystone_endpoint(service_host, service_port,
 
 def update_user_password(username, password):
     import manager
-    manager = manager.KeystoneManager(endpoint=get_local_endpoint(),
+    manager = manager.KeystoneManager(endpoint=LOCAL_ENDPOINT,
                                       token=get_admin_token())
     utils.juju_log('INFO', "Updating password for user '%s'" % username)
 
