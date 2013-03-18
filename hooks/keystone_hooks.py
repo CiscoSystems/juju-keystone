@@ -100,7 +100,7 @@ valid_services = {
 def install_hook():
     if config["openstack-origin"] != "distro":
         configure_installation_source(config["openstack-origin"])
-    utils.install(packages)
+    utils.install(*packages)
     update_config_block('DEFAULT',
                 public_port=cluster.determine_api_port(config["service-port"]))
     update_config_block('DEFAULT',
