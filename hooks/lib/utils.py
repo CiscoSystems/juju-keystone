@@ -180,7 +180,8 @@ def relation_get_dict(relation_id=None, remote_unit=None):
         'relation-get', '--format=json'
         ]
     if relation_id:
-        cmd.append('-r', relation_id)
+        cmd.append('-r')
+        cmd.append(relation_id)
     if remote_unit:
         remote_unit_orig = os.getenv('JUJU_REMOTE_UNIT', None)
         os.environ['JUJU_REMOTE_UNIT'] = remote_unit
