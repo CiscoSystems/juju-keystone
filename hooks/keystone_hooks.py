@@ -98,8 +98,7 @@ valid_services = {
 
 
 def install_hook():
-    if config["openstack-origin"] != "distro":
-        configure_installation_source(config["openstack-origin"])
+    utils.configure_source()
     utils.install(*packages)
     update_config_block('DEFAULT',
                 public_port=cluster.determine_api_port(config["service-port"]))
@@ -387,7 +386,6 @@ def config_changed():
         configure_pki_tokens(config)
 
     utils.restart('keystone')
-    cluster_changed()
 
 
 def upgrade_charm():
