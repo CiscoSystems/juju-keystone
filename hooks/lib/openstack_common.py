@@ -13,7 +13,7 @@ ubuntu_openstack_release = {
     'oneiric': 'diablo',
     'precise': 'essex',
     'quantal': 'folsom',
-    'raring' : 'grizzly',
+    'raring': 'grizzly',
 }
 
 
@@ -33,6 +33,7 @@ swift_codenames = {
     '1.7.6': 'grizzly',
     '1.7.7': 'grizzly',
 }
+
 
 def juju_log(msg):
     subprocess.check_call(['juju-log', msg])
@@ -77,6 +78,7 @@ def get_os_codename_install_source(src):
         for k, v in openstack_codenames.iteritems():
             if v in src:
                 return v
+
 
 def get_os_codename_version(vers):
     '''Determine OpenStack codename from version number.'''
@@ -136,6 +138,7 @@ def get_os_version_package(pkg):
     e = "Could not determine OpenStack version for package: %s" % pkg
     error_out(e)
 
+
 def configure_installation_source(rel):
     '''Configure apt installation source.'''
 
@@ -154,7 +157,7 @@ def configure_installation_source(rel):
         subprocess.check_call(["add-apt-repository", "-y", src])
     elif rel[:3] == "deb":
         l = len(rel.split('|'))
-        if l ==  2:
+        if l == 2:
             src, key = rel.split('|')
             juju_log("Importing PPA key from keyserver for %s" % src)
             _import_key(key)
@@ -211,6 +214,7 @@ def configure_installation_source(rel):
 HAPROXY_CONF = '/etc/haproxy/haproxy.cfg'
 HAPROXY_DEFAULT = '/etc/default/haproxy'
 
+
 def configure_haproxy(units, service_ports, template_dir=None):
     template_dir = template_dir or 'templates'
     import jinja2
@@ -229,6 +233,7 @@ def configure_haproxy(units, service_ports, template_dir=None):
     with open(HAPROXY_DEFAULT, 'w') as f:
         f.write('ENABLED=1')
 
+
 def save_script_rc(script_path="scripts/scriptrc", **env_vars):
     """
     Write an rc file in the charm-delivered directory containing
@@ -238,7 +243,7 @@ def save_script_rc(script_path="scripts/scriptrc", **env_vars):
     service changes.
     """
     unit_name = os.getenv('JUJU_UNIT_NAME').replace('/', '-')
-    juju_rc_path="/var/lib/juju/units/%s/charm/%s" % (unit_name, script_path)
+    juju_rc_path = "/var/lib/juju/units/%s/charm/%s" % (unit_name, script_path)
     with open(juju_rc_path, 'wb') as rc_script:
         rc_script.write(
             "#!/bin/bash\n")

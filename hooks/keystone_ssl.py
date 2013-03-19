@@ -1,17 +1,15 @@
 #!/usr/bin/python
 
-import base64
 import os
 import shutil
 import subprocess
 import tarfile
 import tempfile
-from utils import *
 
 CA_EXPIRY = '365'
 ORG_NAME = 'Ubuntu'
 ORG_UNIT = 'Ubuntu Cloud'
-CA_BUNDLE='/usr/local/share/ca-certificates/juju_ca_cert.crt'
+CA_BUNDLE = '/usr/local/share/ca-certificates/juju_ca_cert.crt'
 
 CA_CONFIG = """
 [ ca ]
@@ -58,7 +56,7 @@ authorityKeyIdentifier  = keyid:always, issuer
 keyUsage                = cRLSign, keyCertSign
 """
 
-SIGNING_CONFIG="""
+SIGNING_CONFIG = """
 [ ca ]
 default_ca = CA_default
 
@@ -141,9 +139,9 @@ def root_ca_crt_key(ca_dir):
         else:
             print 'Found %s.' % f
     if init:
-        cmd = ['openssl', 'req', '-config', os.path.join(ca_dir, 'ca.cnf'), '-x509',
-               '-nodes', '-newkey', 'rsa', '-days', '21360', '-keyout', key,
-               '-out', crt, '-outform', 'PEM']
+        cmd = ['openssl', 'req', '-config', os.path.join(ca_dir, 'ca.cnf'),
+               '-x509', '-nodes', '-newkey', 'rsa', '-days', '21360',
+               '-keyout', key, '-out', crt, '-outform', 'PEM']
         subprocess.check_call(cmd)
     return crt, key
 
@@ -152,8 +150,9 @@ def intermediate_ca_csr_key(ca_dir):
     print 'Creating new intermediate CSR.'
     key = os.path.join(ca_dir, 'private', 'cacert.key')
     csr = os.path.join(ca_dir, 'cacert.csr')
-    cmd = ['openssl', 'req', '-config', os.path.join(ca_dir, 'ca.cnf'), '-sha1',
-           '-newkey', 'rsa', '-nodes', '-keyout', key, '-out', csr, '-outform',
+    cmd = ['openssl', 'req', '-config', os.path.join(ca_dir, 'ca.cnf'),
+           '-sha1', '-newkey', 'rsa', '-nodes', '-keyout', key, '-out',
+           csr, '-outform',
            'PEM']
     subprocess.check_call(cmd)
     return csr, key
@@ -164,7 +163,8 @@ def sign_int_csr(ca_dir, csr, common_name):
     crt = os.path.join(ca_dir, 'certs',
                         '%s.crt' % os.path.basename(csr).split('.')[0])
     subj = '/O=%s/OU=%s/CN=%s' % (ORG_NAME, ORG_UNIT, common_name)
-    cmd = ['openssl', 'ca', '-batch', '-config', os.path.join(ca_dir, 'ca.cnf'),
+    cmd = ['openssl', 'ca', '-batch', '-config',
+           os.path.join(ca_dir, 'ca.cnf'),
            '-extensions', 'ca_extensions', '-days', CA_EXPIRY, '-notext',
            '-in', csr, '-out', crt, '-subj', subj, '-batch']
     print ' '.join(cmd)
@@ -201,9 +201,10 @@ def create_certificate(ca_dir, service):
     cmd = ['openssl', 'req', '-sha1', '-newkey', 'rsa', '-nodes', '-keyout',
            key, '-out', csr, '-subj', subj]
     subprocess.check_call(cmd)
-    crt = sign_csr(ca_dir, csr, common_name)
+    crt = sign_int_csr(ca_dir, csr, common_name)
     print 'Signed new CSR, crt @ %s' % crt
     return
+
 
 def update_bundle(bundle_file, new_bundle):
     return
@@ -219,10 +220,11 @@ def update_bundle(bundle_file, new_bundle):
         out.write(new_bundle)
     subprocess.check_call(['update-ca-certificates'])
 
+
 def tar_directory(path):
     cwd = os.getcwd()
-    parent=os.path.dirname(path)
-    directory=os.path.basename(path)
+    parent = os.path.dirname(path)
+    directory = os.path.basename(path)
     tmp = tempfile.TemporaryFile()
     os.chdir(parent)
     tarball = tarfile.TarFile(fileobj=tmp, mode='w')
@@ -233,6 +235,7 @@ def tar_directory(path):
     tmp.close()
     os.chdir(cwd)
     return out
+
 
 class JujuCA(object):
     def __init__(self, name, ca_dir, root_ca_dir, user, group):
@@ -265,8 +268,8 @@ class JujuCA(object):
         subj = '/O=%s/OU=%s/CN=%s' % (ORG_NAME, ORG_UNIT, common_name)
         csr = os.path.join(self.ca_dir, 'certs', '%s.csr' % service)
         key = os.path.join(self.ca_dir, 'certs', '%s.key' % service)
-        cmd = ['openssl', 'req', '-sha1', '-newkey', 'rsa', '-nodes', '-keyout',
-               key, '-out', csr, '-subj', subj]
+        cmd = ['openssl', 'req', '-sha1', '-newkey', 'rsa', '-nodes',
+               '-keyout', key, '-out', csr, '-subj', subj]
         subprocess.check_call(cmd)
         crt = self._sign_csr(csr, service, common_name)
         cmd = ['chown', '-R', '%s.%s' % (self.user, self.group), self.ca_dir]

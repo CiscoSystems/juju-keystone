@@ -1,6 +1,7 @@
 #!/usr/bin/python
 from keystoneclient.v2_0 import client
 
+
 class KeystoneManager(object):
     def __init__(self, endpoint, token):
         self.api = client.Client(endpoint=endpoint, token=token)
