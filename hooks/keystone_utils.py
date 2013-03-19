@@ -246,7 +246,7 @@ def create_user(name, password, tenant):
 def create_role(name, user=None, tenant=None):
     """ creates a role if it doesn't already exist. grants role to user """
     import manager
-    manager = manager.KeystoneManager(endpoint=get_local_endpoint()(),
+    manager = manager.KeystoneManager(endpoint=get_local_endpoint(),
                                       token=get_admin_token())
     roles = [r._info for r in manager.api.roles.list()]
     if not roles or name not in [r['name'] for r in roles]:
