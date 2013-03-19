@@ -1,6 +1,5 @@
 #!/usr/bin/python
 
-import os
 import time
 import urlparse
 
@@ -29,7 +28,6 @@ from keystone_utils import (
     )
 
 from lib.openstack_common import (
-    configure_installation_source,
     get_os_codename_install_source,
     get_os_codename_package,
     get_os_version_codename,
@@ -385,6 +383,17 @@ def config_changed():
         configure_pki_tokens(config)
 
     utils.restart('keystone')
+
+    if cluster.eligible_leader(CLUSTER_RES):
+        utils.juju_log('INFO',
+                       'Firing identity_changed hook'
+                       ' for all related services.')
+        # HTTPS may have been set - so fire all identity relations
+        # again
+        for r_id in utils.relation_ids('identity-service'):
+            for unit in utils.relation_list(r_id):
+                identity_changed(relation_id=r_id,
+                                 remote_unit=unit)
 
 
 def upgrade_charm():
