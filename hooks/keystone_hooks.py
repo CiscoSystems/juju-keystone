@@ -237,7 +237,7 @@ def identity_changed(relation_id=None, remote_unit=None):
                 relation_data["service_host"] = config['hostname']
             relation_data["auth_port"] = config['admin-port']
             relation_data["service_port"] = config['service-port']
-            if https():
+            if config['https-service-endpoints'] in ['True', 'true']:
                 # Pass CA cert as client will need it to
                 # verify https connections
                 ca = get_ca(user=SSH_USER)
