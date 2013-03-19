@@ -226,7 +226,7 @@ def create_tenant(name):
 def create_user(name, password, tenant):
     """ creates a user if it doesn't already exist, as a member of tenant """
     import manager
-    manager = manager.KeystoneManager(endpoint=get_local_endpoint()(),
+    manager = manager.KeystoneManager(endpoint=get_local_endpoint(),
                                       token=get_admin_token())
     users = [u._info for u in manager.api.users.list()]
     if not users or name not in [u['name'] for u in users]:
