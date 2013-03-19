@@ -24,7 +24,8 @@ from keystone_utils import (
     configure_pki_tokens,
     SSH_USER,
     SSL_DIR,
-    CLUSTER_RES
+    CLUSTER_RES,
+    https
     )
 
 from lib.openstack_common import (
@@ -236,6 +237,13 @@ def identity_changed(relation_id=None, remote_unit=None):
                 relation_data["service_host"] = config['hostname']
             relation_data["auth_port"] = config['admin-port']
             relation_data["service_port"] = config['service-port']
+            if https():
+                # Pass CA cert as client will need it to
+                # verify https connections
+                ca = get_ca(user=SSH_USER)
+                ca_bundle = ca.get_ca_bundle()
+                relation_data['https_keystone'] = 'True'
+                relation_data['ca_cert'] = b64encode(ca_bundle)
             utils.relation_set(**relation_data)
             return
 
