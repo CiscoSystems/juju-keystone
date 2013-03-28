@@ -372,8 +372,10 @@ def config_changed():
         do_openstack_upgrade(config['openstack-origin'], ' '.join(packages))
 
     env_vars = {'OPENSTACK_SERVICE_KEYSTONE': 'keystone',
-                'OPENSTACK_PORT_ADMIN': config['admin-port'],
-                'OPENSTACK_PORT_PUBLIC': config['service-port']}
+                'OPENSTACK_PORT_ADMIN': cluster.determine_api_port(
+                    config['admin-port']),
+                'OPENSTACK_PORT_PUBLIC': cluster.determine_api_port(
+                    config['service-port'])}
     save_script_rc(**env_vars)
 
     set_admin_token(config['admin-token'])
