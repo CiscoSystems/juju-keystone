@@ -121,8 +121,9 @@ def install_hook():
     execute("keystone-manage db_sync")
     utils.start('keystone')
 
-    # ensure /var/lib/keystone is g+wrx for peer relations that
+    # ensure user + permissions for peer relations that
     # may be syncing data there via SSH_USER.
+    unison.ensure_user(user=SSH_USER, group='keystone')
     execute("chmod -R g+wrx /var/lib/keystone/")
 
     time.sleep(5)
@@ -362,6 +363,8 @@ def identity_changed(relation_id=None, remote_unit=None):
 
 
 def config_changed():
+    unison.ensure_user(user=SSH_USER, group='keystone')
+    execute("chmod -R g+wrx /var/lib/keystone/")
 
     # Determine whether or not we should do an upgrade, based on the
     # the version offered in keyston-release.
