@@ -133,6 +133,13 @@ def get_admin_token():
     error_out('Could not find admin_token line in %s' % keystone_conf)
 
 
+# Track all updated config settings.
+_config_dirty = [False]
+
+def config_dirty():
+    print 'CONFIG DIRTY: %s' % _config_dirty
+    return True in _config_dirty
+
 def update_config_block(section, **kwargs):
     """ Updates keystone.conf blocks given kwargs.
     Update a config setting in a specific setting of a config
@@ -148,8 +155,16 @@ def update_config_block(section, **kwargs):
 
     if section != 'DEFAULT' and not config.has_section(section):
         config.add_section(section)
+        _config_dirty[0] = True
 
     for k, v in kwargs.iteritems():
+        try:
+            cur = config.get(section, k)
+            if cur != v:
+                _config_dirty[0] = True
+        except (ConfigParser.NoSectionError,
+                ConfigParser.NoOptionError):
+            _config_dirty[0] = True
         config.set(section, k, v)
     with open(conf_file, 'wb') as out:
         config.write(out)

@@ -6,6 +6,7 @@ import urlparse
 from base64 import b64encode
 
 from keystone_utils import (
+    config_dirty,
     config_get,
     execute,
     update_config_block,
@@ -151,12 +152,14 @@ def db_changed():
                              relation_data["db_host"],
                              config["database"]))
 
-    utils.stop('keystone')
     if cluster.eligible_leader(CLUSTER_RES):
         utils.juju_log('INFO',
                        'Cluster leader, performing db-sync')
         execute("keystone-manage db_sync", echo=True)
-    utils.start('keystone')
+
+    if config_dirty():
+        utils.restart('keystone')
+
     time.sleep(5)
 
     if cluster.eligible_leader(CLUSTER_RES):
@@ -392,7 +395,8 @@ def config_changed():
         # PKI introduced in Grizzly
         configure_pki_tokens(config)
 
-    utils.restart('keystone')
+    if config_dirty():
+        utils.restart('keystone')
 
     if cluster.eligible_leader(CLUSTER_RES):
         utils.juju_log('INFO',
@@ -424,7 +428,8 @@ def cluster_joined():
         public_port=cluster.determine_api_port(config["service-port"]))
     update_config_block('DEFAULT',
         admin_port=cluster.determine_api_port(config["admin-port"]))
-    utils.restart('keystone')
+    if config_dirty():
+        utils.restart('keystone')
     service_ports = {
         "keystone_admin": [
             cluster.determine_haproxy_port(config['admin-port']),
