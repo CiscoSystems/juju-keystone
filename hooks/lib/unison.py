@@ -109,7 +109,7 @@ def write_known_hosts(user, hosts):
             out.write('%s\n' % host)
 
 
-def _ensure_user(user, group=None):
+def ensure_user(user, group=None):
     # need to ensure a bash shell'd user exists.
     try:
         pwd.getpwnam(user)
@@ -131,7 +131,7 @@ def ssh_authorized_peers(peer_interface, user, group=None, ensure_user=False):
     hooks with the same parameters.
     """
     if ensure_user:
-        _ensure_user(user, group)
+        ensure_user(user, group)
     priv_key, pub_key = get_keypair(user)
     hook = os.path.basename(sys.argv[0])
     if hook == '%s-relation-joined' % peer_interface:
