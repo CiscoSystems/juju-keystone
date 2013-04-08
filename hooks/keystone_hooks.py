@@ -219,6 +219,7 @@ def identity_changed(relation_id=None, remote_unit=None):
                        "Creating requested roles: %s" % roles)
         for role in roles:
             create_role(role, user=config['admin-user'], tenant='admin')
+            grant_role(user, role, 'admin'])
 
     # the minimum settings needed per endpoint
     single = set(['service', 'region', 'public_url', 'admin_url',
