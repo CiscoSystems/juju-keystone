@@ -298,8 +298,8 @@ def identity_changed(relation_id=None, remote_unit=None):
         utils.juju_log('INFO',
                        "Creating requested roles: %s" % roles)
         for role in roles:
-            create_role(role, user=config['admin-user'], tenant='admin')
-            grant_role(service_username, role, 'admin')
+            create_role(role, user=config['admin-user'], config['service-tenant'])
+            grant_role(service_username, role, config['service-tenant'])
 
     if 'None' in [v for k, v in settings.iteritems()]:
         return
