@@ -211,16 +211,6 @@ def identity_changed(relation_id=None, remote_unit=None):
     settings = utils.relation_get_dict(relation_id=relation_id,
                                        remote_unit=remote_unit)
 
-    # Allow the remote service to request creation of any additional roles.
-    # Currently used by Swift.
-    if 'requested_roles' in settings and settings['requested_roles'] != 'None':
-        roles = settings['requested_roles'].split(',')
-        utils.juju_log('INFO',
-                       "Creating requested roles: %s" % roles)
-        for role in roles:
-            create_role(role, user=config['admin-user'], tenant='admin')
-            grant_role(config['admin-user'], role, 'admin'])
-
     # the minimum settings needed per endpoint
     single = set(['service', 'region', 'public_url', 'admin_url',
                   'internal_url'])
@@ -300,6 +290,16 @@ def identity_changed(relation_id=None, remote_unit=None):
                     https_cn = urlparse.urlparse(ep['internal_url'])
                     https_cn = https_cn.hostname
         service_username = '_'.join(services)
+
+    # Allow the remote service to request creation of any additional roles.
+    # Currently used by Swift.
+    if 'requested_roles' in settings and settings['requested_roles'] != 'None':
+        roles = settings['requested_roles'].split(',')
+        utils.juju_log('INFO',
+                       "Creating requested roles: %s" % roles)
+        for role in roles:
+            create_role(role, user=config['admin-user'], tenant='admin')
+            grant_role(service_username, role, 'admin'])
 
     if 'None' in [v for k, v in settings.iteritems()]:
         return
