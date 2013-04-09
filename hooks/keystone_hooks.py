@@ -211,15 +211,6 @@ def identity_changed(relation_id=None, remote_unit=None):
     settings = utils.relation_get_dict(relation_id=relation_id,
                                        remote_unit=remote_unit)
 
-    # Allow the remote service to request creation of any additional roles.
-    # Currently used by Swift.
-    if 'requested_roles' in settings and settings['requested_roles'] != 'None':
-        roles = settings['requested_roles'].split(',')
-        utils.juju_log('INFO',
-                       "Creating requested roles: %s" % roles)
-        for role in roles:
-            create_role(role, user=config['admin-user'], tenant='admin')
-
     # the minimum settings needed per endpoint
     single = set(['service', 'region', 'public_url', 'admin_url',
                   'internal_url'])
@@ -314,6 +305,16 @@ def identity_changed(relation_id=None, remote_unit=None):
     create_user(service_username, service_password, config['service-tenant'])
     grant_role(service_username, config['admin-role'],
                config['service-tenant'])
+
+    # Allow the remote service to request creation of any additional roles.
+    # Currently used by Swift and Ceilometer.
+    if 'requested_roles' in settings and settings['requested_roles'] != 'None':
+        roles = settings['requested_roles'].split(',')
+        utils.juju_log('INFO',
+                       "Creating requested roles: %s" % roles)
+        for role in roles:
+            create_role(role, service_username, config['service-tenant'])
+            grant_role(service_username, role, config['service-tenant'])
 
     # As of https://review.openstack.org/#change,4675, all nodes hosting
     # an endpoint(s) needs a service username and password assigned to
