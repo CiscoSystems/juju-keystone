@@ -125,12 +125,12 @@ def ensure_user(user, group=None):
         subprocess.check_call(cmd)
 
 
-def ssh_authorized_peers(peer_interface, user, group=None, ensure_user=False):
+def ssh_authorized_peers(peer_interface, user, group=None, ensure_local_user=False):
     """
     Main setup function, should be called from both peer -changed and -joined
     hooks with the same parameters.
     """
-    if ensure_user:
+    if ensure_local_user:
         ensure_user(user, group)
     priv_key, pub_key = get_keypair(user)
     hook = os.path.basename(sys.argv[0])

@@ -422,7 +422,7 @@ def cluster_joined():
     unison.ssh_authorized_peers(user=SSH_USER,
                                 group='keystone',
                                 peer_interface='cluster',
-                                ensure_user=True)
+                                ensure_local_user=True)
     update_config_block('DEFAULT',
         public_port=cluster.determine_api_port(config["service-port"]))
     update_config_block('DEFAULT',
@@ -445,7 +445,7 @@ def cluster_changed():
     unison.ssh_authorized_peers(user=SSH_USER,
                                 group='keystone',
                                 peer_interface='cluster',
-                                ensure_user=True)
+                                ensure_local_user=True)
     synchronize_service_credentials()
     service_ports = {
         "keystone_admin": [
