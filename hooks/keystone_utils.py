@@ -137,7 +137,6 @@ def get_admin_token():
 _config_dirty = [False]
 
 def config_dirty():
-    print 'CONFIG DIRTY: %s' % _config_dirty
     return True in _config_dirty
 
 def update_config_block(section, **kwargs):
