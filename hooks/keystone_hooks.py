@@ -415,6 +415,8 @@ def config_changed():
 
 
 def upgrade_charm():
+    # Ensure all required packages are installed
+    utils.install(*packages)
     cluster_changed()
     if cluster.eligible_leader(CLUSTER_RES):
         utils.juju_log('INFO',
