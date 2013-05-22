@@ -45,7 +45,8 @@ config = config_get()
 
 packages = [
     "keystone", "python-mysqldb", "pwgen",
-    "haproxy", "python-jinja2", "openssl", "unison"
+    "haproxy", "python-jinja2", "openssl", "unison",
+    "python-sqlalchemy"
     ]
 service = "keystone"
 
@@ -377,6 +378,8 @@ def config_changed():
             get_os_version_codename(installed)):
         # TODO: fixup this call to work like utils.install()
         do_openstack_upgrade(config['openstack-origin'], ' '.join(packages))
+        # Ensure keystone group permissions
+        execute("chmod -R g+wrx /var/lib/keystone/")
 
     env_vars = {'OPENSTACK_SERVICE_KEYSTONE': 'keystone',
                 'OPENSTACK_PORT_ADMIN': cluster.determine_api_port(
