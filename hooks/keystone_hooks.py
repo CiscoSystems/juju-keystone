@@ -45,7 +45,8 @@ config = config_get()
 
 packages = [
     "keystone", "python-mysqldb", "pwgen",
-    "haproxy", "python-jinja2", "openssl", "unison"
+    "haproxy", "python-jinja2", "openssl", "unison",
+    "python-sqlalchemy"
     ]
 service = "keystone"
 
