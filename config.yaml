@@ -26,6 +26,10 @@ options:
     default: "/etc/keystone/keystone.conf"
     type: string
     description: "Location of keystone configuration file"
+  log-level:
+    default: WARNING
+    type: string
+    description: Log level (WARNING, INFO, DEBUG, ERROR)
   service-port:
     default: 5000
     type: int
@@ -75,3 +79,40 @@ options:
     default: "keystone"
     type: string
     description: "Database username"
+  region:
+    default: RegionOne
+    type: string
+    description: "OpenStack Region(s) - separate multiple regions with single space"
+  # HA configuration settings
+  vip:
+    type: string
+    description: "Virtual IP to use to front keystone in ha configuration"
+  vip_iface:
+    type: string
+    default: eth0
+    description: "Network Interface where to place the Virtual IP"
+  vip_cidr:
+    type: int
+    default: 24
+    description: "Netmask that will be used for the Virtual IP"
+  ha-bindiface:
+    type: string
+    default: eth0
+    description: |
+      Default network interface on which HA cluster will bind to communication
+      with the other members of the HA Cluster.
+  ha-mcastport:
+    type: int
+    default: 5403
+    description: |
+      Default multicast port number that will be used to communicate between
+      HA Cluster nodes.
+  # PKI enablement and configuration (Grizzly and beyond)
+  enable-pki:
+    default: "false"
+    type: string
+    description: "Enable PKI token signing (Grizzly and beyond)"
+  https-service-endpoints:
+    default: "False"
+    type: string
+    description: "Manage SSL certificates for all service endpoints."
