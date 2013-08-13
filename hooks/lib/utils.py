@@ -206,11 +206,9 @@ def relation_get_dict(relation_id=None, remote_unit=None):
         cmd.append('-r')
         cmd.append(relation_id)
     if remote_unit:
-        remote_unit_orig = os.getenv('JUJU_REMOTE_UNIT', None)
-        os.environ['JUJU_REMOTE_UNIT'] = remote_unit
+        cmd.append('-')
+        cmd.append(remote_unit)
     j = subprocess.check_output(cmd)
-    if remote_unit and remote_unit_orig:
-        os.environ['JUJU_REMOTE_UNIT'] = remote_unit_orig
     d = json.loads(j)
     settings = {}
     # convert unicode to strings

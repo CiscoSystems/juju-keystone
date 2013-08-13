@@ -240,6 +240,8 @@ def identity_changed(relation_id=None, remote_unit=None):
                 ca_bundle = ca.get_ca_bundle()
                 relation_data['https_keystone'] = 'True'
                 relation_data['ca_cert'] = b64encode(ca_bundle)
+            if relation_id:
+                relation_data['rid'] = relation_id
             utils.relation_set(**relation_data)
             return
 
