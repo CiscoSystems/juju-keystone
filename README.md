@@ -26,3 +26,4 @@ The charm supports relations to a shared-db via mysql-shared interface.  When
 a new data store is configured, the charm ensures the minimum administrator
 credentials exist (as configured via charm configuration)
 
+VIP is only required if you plan on multi-unit clusterming. The VIP becomes a highly-available API endpoint.
