@@ -201,6 +201,15 @@ def identity_joined():
     pass
 
 
+def get_requested_roles(settings):
+    ''' Retrieve any valid requested_roles from dict settings '''
+    if ('requested_roles' in settings and
+        settings['requested_roles'] not in ['None', None]):
+        return settings['requested_roles'].split(',')
+    else:
+        return []
+
+
 def identity_changed(relation_id=None, remote_unit=None):
     """ A service has advertised its API endpoints, create an entry in the
         service catalog.
@@ -242,7 +251,14 @@ def identity_changed(relation_id=None, remote_unit=None):
                 relation_data['ca_cert'] = b64encode(ca_bundle)
             if relation_id:
                 relation_data['rid'] = relation_id
+            # Allow the remote service to request creation of any additional
+            # roles. Currently used by Horizon
+            for role in get_requested_roles():
+                utils.juju_log('INFO',
+                               "Creating requested role: %s" % role)
+                create_role(role)
             utils.relation_set(**relation_data)
+            return
         else:
             ensure_valid_service(settings['service'])
             add_endpoint(region=settings['region'],
@@ -296,28 +312,6 @@ def identity_changed(relation_id=None, remote_unit=None):
                     https_cn = https_cn.hostname
         service_username = '_'.join(services)
 
-    # Allow the remote service to request creation of any additional roles.
-    # Currently used by Horizon, Swift and Ceilometer.
-    if ('requested_roles' in settings and
-        settings['requested_roles'] not in ['None', None]):
-        roles = settings['requested_roles'].split(',')
-        utils.juju_log('INFO',
-                       "Creating requested roles: %s" % roles)
-        for role in roles:
-            if ('service' in settings and
-                settings['service'] not in ['None', None]):
-                create_role(role, settings['service'],
-                            config['service-tenant'])
-            else:
-                # No endpoint being registered - just create the role
-                create_role(role)
-
-    if 'None' in [v for k, v in settings.iteritems()]:
-        return
-
-    if not service_username:
-        return
-
     token = get_admin_token()
     utils.juju_log('INFO',
                    "Creating service credentials for '%s'" % service_username)
@@ -326,6 +320,14 @@ def identity_changed(relation_id=None, remote_unit=None):
     create_user(service_username, service_password, config['service-tenant'])
     grant_role(service_username, config['admin-role'],
                config['service-tenant'])
+
+    # Allow the remote service to request creation of any additional roles.
+    # Currently used by Swift and Ceilometer.
+    for role in get_requested_roles():
+        utils.juju_log('INFO',
+                       "Creating requested role: %s" % role)
+        create_role(role, service_username,
+                    config['service-tenant'])
 
     # As of https://review.openstack.org/#change,4675, all nodes hosting
     # an endpoint(s) needs a service username and password assigned to
