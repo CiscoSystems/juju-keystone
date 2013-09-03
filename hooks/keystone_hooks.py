@@ -312,6 +312,12 @@ def identity_changed(relation_id=None, remote_unit=None):
                     https_cn = https_cn.hostname
         service_username = '_'.join(services)
 
+    if 'None' in [v for k, v in settings.iteritems()]:
+        return
+
+    if not service_username:
+        return
+
     token = get_admin_token()
     utils.juju_log('INFO',
                    "Creating service credentials for '%s'" % service_username)
