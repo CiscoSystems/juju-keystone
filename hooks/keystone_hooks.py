@@ -253,7 +253,7 @@ def identity_changed(relation_id=None, remote_unit=None):
                 relation_data['rid'] = relation_id
             # Allow the remote service to request creation of any additional
             # roles. Currently used by Horizon
-            for role in get_requested_roles():
+            for role in get_requested_roles(settings):
                 utils.juju_log('INFO',
                                "Creating requested role: %s" % role)
                 create_role(role)
@@ -329,7 +329,7 @@ def identity_changed(relation_id=None, remote_unit=None):
 
     # Allow the remote service to request creation of any additional roles.
     # Currently used by Swift and Ceilometer.
-    for role in get_requested_roles():
+    for role in get_requested_roles(settings):
         utils.juju_log('INFO',
                        "Creating requested role: %s" % role)
         create_role(role, service_username,
