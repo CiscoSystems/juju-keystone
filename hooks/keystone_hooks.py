@@ -216,7 +216,7 @@ def identity_changed(relation_id=None, remote_unit=None):
                                        remote_unit=remote_unit)
 
     # Allow the remote service to request creation of any additional roles.
-    # Currently used by Swift and Ceilometer.
+    # Currently used by Horizon, Swift and Ceilometer.
     if 'requested_roles' in settings and settings['requested_roles'] != 'None':
         roles = settings['requested_roles'].split(',')
         utils.juju_log('INFO',
