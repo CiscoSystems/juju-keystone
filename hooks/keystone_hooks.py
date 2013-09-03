@@ -221,6 +221,14 @@ def identity_changed(relation_id=None, remote_unit=None):
         roles = settings['requested_roles'].split(',')
         utils.juju_log('INFO',
                        "Creating requested roles: %s" % roles)
+
+        if 'service' not in settings:
+            # If remote service is not registering a service then
+            # create and grant roles to the admin-user.
+            service_username = config['admin-user']
+        else:
+            service_username = settings['service']
+
         for role in roles:
             create_role(role, service_username, config['service-tenant'])
             grant_role(service_username, role, config['service-tenant'])
