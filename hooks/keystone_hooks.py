@@ -217,14 +217,15 @@ def identity_changed(relation_id=None, remote_unit=None):
 
     # Allow the remote service to request creation of any additional roles.
     # Currently used by Horizon, Swift and Ceilometer.
-    if 'requested_roles' in settings and settings['requested_roles'] not in ['None', None]:
+    if ('requested_roles' in settings and
+        settings['requested_roles'] not in ['None', None]):
         roles = settings['requested_roles'].split(',')
         utils.juju_log('INFO',
                        "Creating requested roles: %s" % roles)
         for role in roles:
-            if 'service' in settings:
+            if ('service' in settings and
+                settings['service'] not in ['None', None]):
                 create_role(role, settings['service'], config['service-tenant'])
-                grant_role(settings['service'], role, config['service-tenant'])
             else:
                 # No endpoint being registered - just create the role
                 create_role(role)
