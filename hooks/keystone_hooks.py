@@ -215,21 +215,6 @@ def identity_changed(relation_id=None, remote_unit=None):
     settings = utils.relation_get_dict(relation_id=relation_id,
                                        remote_unit=remote_unit)
 
-    # Allow the remote service to request creation of any additional roles.
-    # Currently used by Horizon, Swift and Ceilometer.
-    if ('requested_roles' in settings and
-        settings['requested_roles'] not in ['None', None]):
-        roles = settings['requested_roles'].split(',')
-        utils.juju_log('INFO',
-                       "Creating requested roles: %s" % roles)
-        for role in roles:
-            if ('service' in settings and
-                settings['service'] not in ['None', None]):
-                create_role(role, settings['service'], config['service-tenant'])
-            else:
-                # No endpoint being registered - just create the role
-                create_role(role)
-
     # the minimum settings needed per endpoint
     single = set(['service', 'region', 'public_url', 'admin_url',
                   'internal_url'])
@@ -258,17 +243,16 @@ def identity_changed(relation_id=None, remote_unit=None):
             if relation_id:
                 relation_data['rid'] = relation_id
             utils.relation_set(**relation_data)
-            return
-
-        ensure_valid_service(settings['service'])
-
-        add_endpoint(region=settings['region'], service=settings['service'],
-                     publicurl=settings['public_url'],
-                     adminurl=settings['admin_url'],
-                     internalurl=settings['internal_url'])
-        service_username = settings['service']
-        https_cn = urlparse.urlparse(settings['internal_url'])
-        https_cn = https_cn.hostname
+        else:
+            ensure_valid_service(settings['service'])
+            add_endpoint(region=settings['region'],
+                         service=settings['service'],
+                         publicurl=settings['public_url'],
+                         adminurl=settings['admin_url'],
+                         internalurl=settings['internal_url'])
+            service_username = settings['service']
+            https_cn = urlparse.urlparse(settings['internal_url'])
+            https_cn = https_cn.hostname
     else:
         # assemble multiple endpoints from relation data. service name
         # should be prepended to setting name, ie:
@@ -311,6 +295,22 @@ def identity_changed(relation_id=None, remote_unit=None):
                     https_cn = urlparse.urlparse(ep['internal_url'])
                     https_cn = https_cn.hostname
         service_username = '_'.join(services)
+
+    # Allow the remote service to request creation of any additional roles.
+    # Currently used by Horizon, Swift and Ceilometer.
+    if ('requested_roles' in settings and
+        settings['requested_roles'] not in ['None', None]):
+        roles = settings['requested_roles'].split(',')
+        utils.juju_log('INFO',
+                       "Creating requested roles: %s" % roles)
+        for role in roles:
+            if ('service' in settings and
+                settings['service'] not in ['None', None]):
+                create_role(role, settings['service'],
+                            config['service-tenant'])
+            else:
+                # No endpoint being registered - just create the role
+                create_role(role)
 
     if 'None' in [v for k, v in settings.iteritems()]:
         return
