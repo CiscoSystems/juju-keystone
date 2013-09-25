@@ -14,6 +14,7 @@ ubuntu_openstack_release = {
     'precise': 'essex',
     'quantal': 'folsom',
     'raring': 'grizzly',
+    'saucy': 'havana',
 }
 
 
