@@ -173,7 +173,7 @@ def _run_as_user(user):
 
 
 def run_as_user(user, cmd):
-    return subprocess.check_output(cmd, preexec_fn=_run_as_user(user))
+    return subprocess.check_output(cmd, preexec_fn=_run_as_user(user), cwd='/')
 
 
 def sync_to_peers(peer_interface, user, paths=[], verbose=False):
