@@ -14,6 +14,7 @@ ubuntu_openstack_release = {
     'precise': 'essex',
     'quantal': 'folsom',
     'raring': 'grizzly',
+    'saucy': 'havana',
 }
 
 
@@ -110,7 +111,7 @@ def get_os_codename_package(pkg):
         e = 'Could not determine version of installed package: %s' % pkg
         error_out(e)
 
-    vers = apt.UpstreamVersion(pkg.current_ver.ver_str)
+    vers = apt.upstream_version(pkg.current_ver.ver_str)
 
     try:
         if 'swift' in pkg.name:

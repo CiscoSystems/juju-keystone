@@ -71,7 +71,10 @@ CLOUD_ARCHIVE_POCKETS = {
     'folsom/proposed': 'precise-proposed/folsom',
     'grizzly': 'precise-updates/grizzly',
     'grizzly/updates': 'precise-updates/grizzly',
-    'grizzly/proposed': 'precise-proposed/grizzly'
+    'grizzly/proposed': 'precise-proposed/grizzly',
+    'havana': 'precise-updates/havana',
+    'havana/updates': 'precise-updates/havana',
+    'havana/proposed': 'precise-proposed/havana',
     }
 
 
