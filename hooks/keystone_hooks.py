@@ -41,6 +41,8 @@ import lib.utils as utils
 import lib.cluster_utils as cluster
 import lib.haproxy_utils as haproxy
 
+from charmhelpers.payload.execd import execd_preinstall
+
 config = config_get()
 
 packages = [
@@ -98,6 +100,7 @@ valid_services = {
 
 
 def install_hook():
+    execd_preinstall()
     utils.configure_source()
     utils.install(*packages)
     update_config_block('DEFAULT',
