@@ -95,7 +95,11 @@ valid_services = {
     "ceilometer": {
         "type": "metering",
         "desc": "Ceilometer Metering Service"
-    }
+    },
+    "heat": {
+        "type": "orchestration",
+        "desc": "Heat orchestration Service"
+    },
 }
 
 
